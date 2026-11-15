@@ -93,13 +93,17 @@ Write-Log "开始处理：版本 $version，已汉化=$patched，上次版本=$s
 if ($DryRun) { Write-Log 'DryRun：跳过写入'; exit 0 }
 
 try {
+    $bak = Join-Path $InstallDir 'resources\app.asar.bak'
     $existing = @(Get-ChildItem -LiteralPath (Join-Path $ProgramDataDir 'backups') -Filter "app-$version-*.asar" -ErrorAction SilentlyContinue)
     if ($existing.Count -eq 0) {
+        $backupSource = $asar
+        if ($patched -and (Test-Path -LiteralPath $bak)) {
+            $bakVersion = (& $Node $readVersion $bak).Trim()
+            if ($bakVersion -eq $version) { $backupSource = $bak }
+        }
         $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-        Copy-Item -LiteralPath $asar -Destination (Join-Path $ProgramDataDir "backups\app-$version-$stamp.asar") -Force
+        Copy-Item -LiteralPath $backupSource -Destination (Join-Path $ProgramDataDir "backups\app-$version-$stamp.asar") -Force
     }
-
-    $bak = Join-Path $InstallDir 'resources\app.asar.bak'
     if (Test-Path -LiteralPath $bak) {
         $bakVersion = (& $Node $readVersion $bak).Trim()
         if ($bakVersion -ne $version) {
@@ -134,6 +138,7 @@ catch {
     Show-Notice '汉化自动更新失败' "请打开 AntigravityZh 日志或重新运行 installer\install.ps1。"
     exit 1
 }
+
 
 
 

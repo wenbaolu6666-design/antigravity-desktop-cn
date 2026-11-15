@@ -1285,7 +1285,7 @@ function generateJs() {
         if (match) return match[1] + ' 需要付费 Pro 或 Ultra 计划。';
         return null;
     }
-    function getHomeGreetingTranslation(node, value) {
+    // 首页问候语：动态保留实际用户名，绝不写死姓名\n    function getHomeGreetingTranslation(node, value) {
         if (!node || typeof value !== 'string') return null;
         const text = norm(value);
         if (!text || text.length > 140) return null;
@@ -8711,4 +8711,5 @@ function main() {
 }
 
 main();
+
 

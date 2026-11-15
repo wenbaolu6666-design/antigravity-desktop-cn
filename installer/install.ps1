@@ -50,13 +50,29 @@ foreach ($item in 'localization_engine.js', 'dicts', 'tools', 'watcher') {
 $version = (& $Node (Join-Path $ProgramDataDir 'tools\read-version.js') $asar).Trim()
 if (-not $version) { throw '无法读取 Antigravity 版本号。' }
 
+$bak = Join-Path $InstallDir 'resources\app.asar.bak'
+$currentBytes = [System.IO.File]::ReadAllBytes($asar)
+$currentPatched = ([System.Text.Encoding]::UTF8.GetString($currentBytes)).Contains('__ANTIGRAVITY_CHINESE_LOCALIZATION_START__')
+$backupSource = $asar
+if ($currentPatched) {
+    if (Test-Path -LiteralPath $bak) {
+        $bakVersion = (& $Node (Join-Path $ProgramDataDir 'tools\read-version.js') $bak).Trim()
+        if ($bakVersion -eq $version) {
+            $backupSource = $bak
+            Write-Host '检测到当前已是汉化版，将从 app.asar.bak 备份官方原版。' -ForegroundColor DarkGray
+        }
+    }
+    if ($backupSource -eq $asar) {
+        Write-Host '警告：当前是汉化版且找不到同版本官方备份，无法生成可靠的原版备份。' -ForegroundColor Yellow
+    }
+}
+
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $backup = Join-Path $ProgramDataDir "backups\app-$version-$stamp.asar"
-Copy-Item -LiteralPath $asar -Destination $backup -Force
+Copy-Item -LiteralPath $backupSource -Destination $backup -Force
 Write-Host "已备份原版：$backup" -ForegroundColor DarkGray
 
 # 避免旧版本备份被引擎当作源文件，造成降级
-$bak = Join-Path $InstallDir 'resources\app.asar.bak'
 if (Test-Path -LiteralPath $bak) {
     $bakVersion = (& $Node (Join-Path $ProgramDataDir 'tools\read-version.js') $bak).Trim()
     if ($bakVersion -ne $version) {
@@ -114,3 +130,4 @@ if (-not $NoRestart -and -not $SkipPatch) {
 }
 
 Write-Host "汉化安装完成：Antigravity $version" -ForegroundColor Green
+
