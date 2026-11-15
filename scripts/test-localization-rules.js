@@ -15,8 +15,18 @@ function loadFunction(name) {
   return eval('(' + source.trim() + ')');
 }
 
-const greeting = loadFunction('getHomeGreetingTranslation');
-const notice = loadFunction('getModelNoticeTranslation');
+const effort = loadFunction('getModelEffortTranslation');
+const effortOptionNode = { nodeType: 3, parentElement: { getAttribute: (n) => n === 'data-testid' ? 'model-selector-effort-option' : null, hasAttribute: () => false, className: 'truncate', previousElementSibling: null, parentElement: null, closest: () => null } };
+const effortGroupNode = { nodeType: 3, parentElement: { getAttribute: () => null, hasAttribute: () => false, className: 'shrink-0 opacity-70 text-sm', previousElementSibling: { getAttribute: (n) => n === 'data-testid' ? 'model-selector-effort-group' : null }, parentElement: null, closest: () => null } };
+const effortTriggerNode = { nodeType: 3, parentElement: { getAttribute: () => null, hasAttribute: () => false, className: 'opacity-70', previousElementSibling: null, parentElement: null, closest: () => ({}) } };const greeting = loadFunction('getHomeGreetingTranslation');
+assert.strictEqual(effort(effortOptionNode, 'Low'), '低');
+assert.strictEqual(effort(effortOptionNode, 'Medium'), '中');
+assert.strictEqual(effort(effortOptionNode, 'High'), '高');
+assert.strictEqual(effort(effortOptionNode, 'Extra'), '极高');
+assert.strictEqual(effort(effortOptionNode, 'Max'), '最高');
+assert.strictEqual(effort(effortGroupNode, 'High'), '高');
+assert.strictEqual(effort(effortTriggerNode, ' High · 1M'), ' 高 · 1M');
+assert.strictEqual(effort({}, 'High'), null);const notice = loadFunction('getModelNoticeTranslation');
 const greetingNode = { nodeType: 3, parentElement: { className: 'home-greeting-title', parentElement: null, getAttribute: () => null } };
 
 for (const name of ['张三', '李四', 'Alice', 'Bob Smith', '欧阳娜娜']) {
@@ -36,5 +46,6 @@ assert.strictEqual(notice({}, 'Gemini 4 Carbon is available to paid Pro and Ultr
 assert.strictEqual(notice({}, 'Gemini 4 Hydrogen is currently unavailable.'), 'Gemini 4 Hydrogen 目前不可用。');assert.strictEqual(notice({}, 'Opus 5.5 is now available on paid Pro and Ultra plans. Third-party model access will no longer be available on your current plan starting on November 18, 2026.'), 'Opus 5.5 现已向付费 Pro 与 Ultra 计划开放。自 2026 年 11 月 18 日起，您当前计划将不再提供第三方模型。');
 
 console.log('本地化规则测试全部通过');
+
 
 

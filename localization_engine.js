@@ -1352,6 +1352,30 @@ function generateJs() {
         return null;
     }
 
+    function getModelEffortTranslation(node, value) {
+        if (!node || typeof value !== 'string') return null;
+        const text = norm(value);
+        const match = text.match(/^(Low|Medium|High|Extra|Max)(\\s+[\\s\\S]*)?$/i);
+        if (!match) return null;
+        const labels = { low: '低', medium: '中', high: '高', extra: '极高', max: '最高' };
+        const label = labels[match[1].toLowerCase()];
+        if (!label) return null;
+        const leading = (value.match(/^\\s*/) || [''])[0];
+        const suffix = match[2] || '';
+        let el = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+        for (let depth = 0; el && depth < 4; depth++) {
+            const testId = el.getAttribute ? (el.getAttribute('data-testid') || '') : '';
+            const cls = typeof el.className === 'string' ? el.className : '';
+            if (testId === 'model-selector-effort-option' || (el.hasAttribute && el.hasAttribute('data-effort'))) return leading + label;
+            const prev = el.previousElementSibling;
+            if (prev && prev.getAttribute && prev.getAttribute('data-testid') === 'model-selector-effort-group') return leading + label;
+            const trigger = el.closest ? el.closest('[data-testid="model-selector-trigger"]') : null;
+            if (trigger && /(?:^|\\s)opacity-70(?:\\s|$)/.test(cls)) return leading + label + suffix;
+            el = el.parentElement;
+        }
+        return null;
+    }
+
     function getToolActivityStatusTranslation(node, value) {
         if (!node || typeof value !== 'string') return null;
         const text = norm(value).replace(/(?:\\s*[.…])+$/, '').trim();
@@ -1406,6 +1430,8 @@ function generateJs() {
         if (homeGreetingTrans) return homeGreetingTrans;
         const modelNoticeTrans = getModelNoticeTranslation(node, value);
         if (modelNoticeTrans) return modelNoticeTrans;
+        const modelEffortTrans = getModelEffortTranslation(node, value);
+        if (modelEffortTrans) return modelEffortTrans;
         const normalized = norm(value);
         const lower = normalized.toLowerCase();
 
@@ -6679,6 +6705,8 @@ function getDynamicProductUiTranslation(value, node = null) {
                 } else if ((dynRes = translateWithShortcut(valNorm))) {
                     newVal = dynRes;
                 } else if ((dynRes = getHomeGreetingTranslation(node, valNorm))) {
+                    newVal = dynRes;
+                } else if ((dynRes = getModelEffortTranslation(node, originalVal))) {
                     newVal = dynRes;
                 } else if ((dynRes = getModelNoticeTranslation(node, valNorm))) {
                     newVal = dynRes;
