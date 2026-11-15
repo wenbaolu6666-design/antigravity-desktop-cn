@@ -28,10 +28,10 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\installer\install.ps1
 Antigravity 更新会替换 `app.asar`。插件在每次新会话启动时只做一次 SHA-256 比对，**不轮询、不常驻、不注册计划任务**：
 
 - 哈希与上次安装一致：直接返回，不产生提示；
-- 哈希不一致：注入一条【汉化守护】消息，提示用户说“修复汉化”；
-- 用户说“修复汉化”后，插件内置的 `runtime/repair.ps1` 会关闭客户端、备份、重新注入并重启；
+- 哈希不一致：启动一次性提权修复助手 `runtime/auto-repair.ps1`（UAC 一次），并注入【汉化守护】消息；
+- 修复助手等待 Antigravity 退出后，自动备份、重新注入并以普通用户身份重启；
+- 若拒绝授权，消息会提示说“修复汉化”，由 `runtime/repair.ps1` 手动修复；
 - 完成后写入 `last-event.json`，下一次会话自动喊话确认。
-
 旧版本备份不会被写回新版本，避免版本错配。
 
 ## 动态文案

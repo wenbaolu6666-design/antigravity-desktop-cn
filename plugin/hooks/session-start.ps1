@@ -26,7 +26,24 @@ if (-not $state) {
 }
 
 if ($needsRepair) {
-    $messages.Add('【汉化守护】检测到 Antigravity 已更新或汉化被覆盖。请用一句简体中文提醒用户说“修复汉化”，不要自动关闭客户端。')
+    $autoRepair = Join-Path $PSScriptRoot '..\runtime\auto-repair.ps1'
+    $spawned = $false
+    if ((Test-Path -LiteralPath $autoRepair) -and $env:ANTIGRAVITY_ZH_NO_AUTO_REPAIR -ne '1') {
+        try {
+            $existing = Get-CimInstance Win32_Process -Filter "Name='pwsh.exe'" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like '*auto-repair.ps1*' }
+            if ($existing) {
+                $spawned = $true
+            } else {
+                Start-Process -FilePath 'pwsh.exe' -Verb RunAs -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', $autoRepair | Out-Null
+                $spawned = $true
+            }
+        } catch {}
+    }
+    if ($spawned) {
+        $messages.Add('【汉化守护】检测到 Antigravity 已更新，已启动自动修复；退出客户端后会自动重装汉化。请用一句简体中文告知用户。')
+    } else {
+        $messages.Add('【汉化守护】检测到 Antigravity 已更新或汉化被覆盖。请用一句简体中文提醒用户说“修复汉化”。')
+    }
 } elseif (Test-Path -LiteralPath $eventFile) {
     try {
         $event = Get-Content -LiteralPath $eventFile -Raw | ConvertFrom-Json
@@ -53,3 +70,4 @@ $payload = @{
     )
 }
 [Console]::Out.Write(($payload | ConvertTo-Json -Depth 6 -Compress))
+

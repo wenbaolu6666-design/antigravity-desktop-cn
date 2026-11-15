@@ -1376,6 +1376,25 @@ function generateJs() {
         return null;
     }
 
+    function isToolActivityContext(node) {
+        let current = node && node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+        let ok = false;
+        for (let depth = 0; current && depth < 7; depth++) {
+            if (current === document.body || current === document.documentElement) break;
+            const tag = current.tagName ? current.tagName.toUpperCase() : '';
+            const cls = typeof current.className === 'string' ? current.className : '';
+            const testId = current.getAttribute ? (current.getAttribute('data-testid') || '') : '';
+            if (tag === 'PRE' || tag === 'CODE' || tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'ARTICLE') return false;
+            if (/(?:prose|markdown|view-line|view-lines|xterm|terminal|code-block|code-line)/i.test(cls)) return false;
+            if (current.getAttribute && (current.getAttribute('contenteditable') === 'true' || current.getAttribute('translate') === 'no')) return false;
+            if (current.getAttribute && current.getAttribute('data-ag-localization-skip') === 'true') return false;
+            if (cls.indexOf('text-muted-foreground') >= 0 || cls.indexOf('leading-snug') >= 0 || cls.indexOf('tabular-nums') >= 0) ok = true;
+            if (/(?:activity|tool|step|agent|status|trajectory|transcript)/i.test(testId)) ok = true;
+            current = current.parentElement || (current.getRootNode && current.getRootNode().host) || null;
+        }
+        return ok;
+    }
+
     function getToolActivityStatusTranslation(node, value) {
         if (!node || typeof value !== 'string') return null;
         const text = norm(value).replace(/(?:\\s*[.…])+$/, '').trim();
@@ -1403,26 +1422,74 @@ function generateJs() {
                 if (fixed[key]) translated = fixed[key] + ' ' + prefixed[2];
             }
         }
-        if (!translated) return null;
-
-        let current = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
-        let contextOk = false;
-        for (let depth = 0; current && depth < 7; depth++) {
-            if (current === document.body || current === document.documentElement) break;
-            const tag = current.tagName ? current.tagName.toUpperCase() : '';
-            const cls = typeof current.className === 'string' ? current.className : '';
-            const testId = current.getAttribute ? (current.getAttribute('data-testid') || '') : '';
-            if (tag === 'PRE' || tag === 'CODE' || tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'ARTICLE') return null;
-            if (/(?:prose|markdown|view-line|view-lines|xterm|terminal|code-block|code-line)/i.test(cls)) return null;
-            if (current.getAttribute && (current.getAttribute('contenteditable') === 'true' || current.getAttribute('translate') === 'no')) return null;
-            if (current.getAttribute && current.getAttribute('data-ag-localization-skip') === 'true') return null;
-            if (cls.indexOf('text-muted-foreground') >= 0) contextOk = true;
-            if (testId === 'agent-loading' || testId === 'transcript-work-line' || /(?:^|-)tool-step$/.test(testId) || testId === 'mcp-tool-step') contextOk = true;
-            current = current.parentElement || (current.getRootNode && current.getRootNode().host) || null;
-        }
-        return contextOk ? translated : null;
+        if (!translated || !isToolActivityContext(node)) return null;
+        return translated;
     }
 
+    function getToolActivityDetailTranslation(node, value) {
+        if (!node || typeof value !== 'string') return null;
+        const text = norm(value);
+        if (!text || text.length > 220) return null;
+        let match;
+        let result = null;
+        if ((match = text.match(/^Searched marketplace for (.+)$/i))) result = '已在插件市场搜索 ' + match[1];
+        else if ((match = text.match(/^Searched for files: (.+)$/i))) result = '已搜索文件：' + match[1];
+        else if ((match = text.match(/^Searched for files$/i)) || (match = text.match(/^Searched files$/i))) result = '已搜索文件';
+        else if ((match = text.match(/^Searched for "(.+)"$/i))) result = '已搜索“' + match[1] + '”';
+        else if ((match = text.match(/^Searched for (.+)$/i))) result = '已搜索 ' + match[1];
+        else if ((match = text.match(/^Searched (.+)$/i))) result = '已搜索 ' + match[1];
+        else if ((match = text.match(/^Searching (.+)$/i))) result = '正在搜索 ' + match[1];
+        else if ((match = text.match(/^Code search: "(.+)"$/i))) result = '代码搜索：“' + match[1] + '”';
+        else if ((match = text.match(/^Internal search: "(.+)"$/i))) result = '内部搜索：“' + match[1] + '”';
+        else if ((match = text.match(/^Listed directory (.+)$/i))) result = '已列出目录 ' + match[1];
+        else if ((match = text.match(/^Browser task: "(.+)"$/i))) result = '浏览器任务：“' + match[1] + '”';
+        else if ((match = text.match(/^Opened browser: (.+)$/i))) result = '已打开浏览器：' + match[1];
+        if (!result) {
+            const prefixes = [
+                [/^Searched marketplace for\\b/i, '已在插件市场搜索'],
+                [/^Searched for files\\b/i, '已搜索文件'],
+                [/^Searched for\\b/i, '已搜索'],
+                [/^Searched\\b/i, '已搜索'],
+                [/^Searching\\b/i, '正在搜索'],
+                [/^Reading\\b/i, '正在读取'],
+                [/^Read\\b/i, '已读取'],
+                [/^Editing\\b/i, '正在编辑'],
+                [/^Edited\\b/i, '已编辑'],
+                [/^Running\\b/i, '正在运行'],
+                [/^Ran\\b/i, '已运行'],
+                [/^Listing\\b/i, '正在列出'],
+                [/^Listed\\b/i, '已列出'],
+                [/^Opening\\b/i, '正在打开'],
+                [/^Opened\\b/i, '已打开'],
+                [/^Creating\\b/i, '正在创建'],
+                [/^Created\\b/i, '已创建'],
+                [/^Deleting\\b/i, '正在删除'],
+                [/^Deleted\\b/i, '已删除'],
+                [/^Updating\\b/i, '正在更新'],
+                [/^Updated\\b/i, '已更新'],
+                [/^Moving\\b/i, '正在移动'],
+                [/^Moved\\b/i, '已移动'],
+                [/^Renaming\\b/i, '正在重命名'],
+                [/^Renamed\\b/i, '已重命名'],
+                [/^Fetching\\b/i, '正在获取'],
+                [/^Fetched\\b/i, '已获取'],
+                [/^Analyzing\\b/i, '正在分析'],
+                [/^Analyzed\\b/i, '已分析'],
+                [/^Exploring\\b/i, '正在浏览'],
+                [/^Explored\\b/i, '已浏览'],
+                [/^Thinking\\b/i, '思考中'],
+                [/^Thought\\b/i, '思考'],
+                [/^Working\\b/i, '工作中'],
+                [/^Waiting for user input\\b/i, '等待用户输入'],
+                [/^Compacting\\b/i, '正在压缩']
+            ];
+            for (const entry of prefixes) {
+                if (entry[0].test(text)) { result = text.replace(entry[0], entry[1]); break; }
+            }
+        }
+        if (!result || !isToolActivityContext(node)) return null;
+        return result;
+    }
     function getProtectedProductUiTranslation(node, value) {
         const toolActivityTrans = getToolActivityStatusTranslation(node, value);
         if (toolActivityTrans) return toolActivityTrans;
@@ -6707,6 +6774,8 @@ function getDynamicProductUiTranslation(value, node = null) {
                 } else if ((dynRes = getHomeGreetingTranslation(node, valNorm))) {
                     newVal = dynRes;
                 } else if ((dynRes = getModelEffortTranslation(node, originalVal))) {
+                    newVal = dynRes;
+                } else if ((dynRes = getToolActivityDetailTranslation(node, originalVal))) {
                     newVal = dynRes;
                 } else if ((dynRes = getModelNoticeTranslation(node, valNorm))) {
                     newVal = dynRes;

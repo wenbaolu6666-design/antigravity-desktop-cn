@@ -50,5 +50,6 @@ if (-not $NoRestart -and -not $SkipPatch -and -not $DryRun) {
 
 Write-Host '安装完成。' -ForegroundColor Green
 Write-Host '更新检查由插件 SessionStart 事件触发：无计划任务、无后台轮询。' -ForegroundColor Cyan
-Write-Host '客户端更新后，新会话会提示“修复汉化”，说一句即可重装。'
+Write-Host '客户端更新后，新会话会自动启动修复；拒绝授权时也可说“修复汉化”。'
+
 

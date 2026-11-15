@@ -50,7 +50,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "$repo\installer\uninstall.ps1"
 插件 `SessionStart` 钩子每次新会话只做一次 SHA-256 比对，**不轮询、不常驻、不注册计划任务**：
 
 - 哈希一致：返回 `{}`，无提示。
-- 哈希不一致：注入【汉化守护】消息，提示用户说“修复汉化”。
+- 哈希不一致：自动启动一次性 `runtime\auto-repair.ps1`（UAC 一次），等待客户端退出后重装；若拒绝授权，再提示用户说“修复汉化”。
 - 修复：运行 `runtime\repair.ps1`（或仓库 `installer\repair.ps1`），会关闭客户端、备份、重新注入并重启。
 - 修复后写入 `last-event.json`，下一次会话自动喊话确认。
 - 旧版本 `app.asar.bak` 会被移除，避免降级。
@@ -61,4 +61,5 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "$repo\installer\uninstall.ps1"
 - 原版备份：`%LOCALAPPDATA%\AntigravityZh\backups\`
 - 插件运行时：`~/.gemini/config/plugins/antigravity-zh-cn/runtime/`
 - 若修复失败，重新运行 `installer\install.ps1`；仍失败时附上日志。
+
 
