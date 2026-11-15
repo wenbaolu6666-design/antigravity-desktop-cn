@@ -14,6 +14,14 @@ function Test-Admin {
     $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
+function Start-AntigravityAsUser([string]$ExePath) {
+    try {
+        Start-Process -FilePath 'explorer.exe' -ArgumentList ('"' + $ExePath + '"') | Out-Null
+    } catch {
+        Start-Process -FilePath $ExePath | Out-Null
+    }
+}
+
 if (-not (Test-Admin) -and -not $DryRun) {
     $arguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $PSCommandPath, '-InstallDir', $InstallDir)
     if ($SkipPatch) { $arguments += '-SkipPatch' }
@@ -37,7 +45,7 @@ if (-not $SkipPlugin) {
 }
 
 if (-not $NoRestart -and -not $SkipPatch -and -not $DryRun) {
-    Start-Process -FilePath (Join-Path $InstallDir 'Antigravity.exe') | Out-Null
+    Start-AntigravityAsUser (Join-Path $InstallDir 'Antigravity.exe')
 }
 
 Write-Host '安装完成。' -ForegroundColor Green

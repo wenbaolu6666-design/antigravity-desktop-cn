@@ -15,6 +15,14 @@ function Test-Admin {
     $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
+function Start-AntigravityAsUser([string]$ExePath) {
+    try {
+        Start-Process -FilePath 'explorer.exe' -ArgumentList ('"' + $ExePath + '"') | Out-Null
+    } catch {
+        Start-Process -FilePath $ExePath | Out-Null
+    }
+}
+
 if (-not (Test-Admin)) {
     $arguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $PSCommandPath, '-InstallDir', $InstallDir)
     if ($Purge) { $arguments += '-Purge' }
@@ -75,6 +83,6 @@ if ($Purge) {
 }
 
 if (-not $NoRestart -and $restored) {
-    Start-Process -FilePath (Join-Path $InstallDir 'Antigravity.exe') | Out-Null
+    Start-AntigravityAsUser (Join-Path $InstallDir 'Antigravity.exe')
 }
 Write-Host '还原流程结束。' -ForegroundColor Cyan

@@ -27,6 +27,14 @@ function Test-Admin {
     $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
+function Start-AntigravityAsUser([string]$ExePath) {
+    try {
+        Start-Process -FilePath 'explorer.exe' -ArgumentList ('"' + $ExePath + '"') | Out-Null
+    } catch {
+        Start-Process -FilePath $ExePath | Out-Null
+    }
+}
+
 if (-not (Test-Admin) -and -not $DryRun -and -not $SkipElevation) {
     $arguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $PSCommandPath, '-InstallDir', $InstallDir)
     if ($NoRestart) { $arguments += '-NoRestart' }
@@ -127,7 +135,7 @@ $event = [ordered]@{
 }
 $event | ConvertTo-Json | Set-Content -LiteralPath $EventFile -Encoding utf8
 
-if (-not $NoRestart) { Start-Process -FilePath (Join-Path $InstallDir 'Antigravity.exe') | Out-Null }
+if (-not $NoRestart) { Start-AntigravityAsUser (Join-Path $InstallDir 'Antigravity.exe') }
 Write-Host "汉化修复完成：Antigravity $version" -ForegroundColor Green
 
 
