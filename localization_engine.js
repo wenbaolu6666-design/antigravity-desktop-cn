@@ -1261,15 +1261,30 @@ function generateJs() {
             const month = months[m[1].toLowerCase()];
             return month ? m[3] + ' 年 ' + month + ' 月 ' + m[2] + ' 日' : raw.trim();
         };
+
         let match = text.match(/^(.+?) is now available on paid Pro and Ultra plans\\.\\s*Third-party model access will no longer be available on your current plan starting on (.+?)\\.$/i);
-        if (match) return match[1] + ' 现已向付费 Pro 与 Ultra 计划开放。自 ' + dateText(match[2]) + ' 起，您当前计划将不再提供第三方模型。';
+        if (match) return match[1] + ' 现已向付费 Pro 与 Ultra 计划开放。自 ' + dateText(match[2]) + '起，您当前计划将不再提供第三方模型。';
         match = text.match(/^Third-party model access will no longer be available on your current plan starting on (.+?)\\.$/i);
-        if (match) return '自 ' + dateText(match[1]) + ' 起，您当前计划将不再提供第三方模型。';
-        match = text.match(/^(.+?) is now available on paid Pro and Ultra plans\\.$/i);
-        if (match) return match[1] + ' 现已向付费 Pro 与 Ultra 计划开放。';
+        if (match) return '自 ' + dateText(match[1]) + '起，您当前计划将不再提供第三方模型。';
+
+        match = text.match(/^(.+?) is (now |currently )?(?:only |exclusively )?available (?:only |exclusively )?(?:to|for|on) (?:paid )?Pro and Ultra (subscribers|subscriber|plans|plan|members|users)(?: only)?\\.$/i);
+        if (match) {
+            const model = match[1].trim();
+            const mode = (match[2] || '').trim().toLowerCase();
+            const kind = match[3].toLowerCase();
+            const target = (kind === 'subscribers' || kind === 'subscriber' || kind === 'members' || kind === 'users') ? '订阅用户' : '计划';
+            const verb = target === '计划' ? '开放' : '提供';
+            if (mode === 'now') return model + ' 现已向付费 Pro 与 Ultra ' + target + verb + '。';
+            if (mode === 'currently') return model + ' 目前仅向付费 Pro 与 Ultra ' + target + verb + '。';
+            return model + ' 向付费 Pro 与 Ultra ' + target + verb + '。';
+        }
+
+        match = text.match(/^(.+?) is (?:currently )?unavailable (?:on|for) your current plan\\.$/i);
+        if (match) return match[1] + ' 在您当前计划中不可用。';
+        match = text.match(/^(.+?) requires? a paid Pro or Ultra plan\\.$/i);
+        if (match) return match[1] + ' 需要付费 Pro 或 Ultra 计划。';
         return null;
     }
-
     function getHomeGreetingTranslation(node, value) {
         if (!node || typeof value !== 'string') return null;
         const text = norm(value);
@@ -8696,3 +8711,4 @@ function main() {
 }
 
 main();
+
