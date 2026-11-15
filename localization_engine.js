@@ -789,20 +789,31 @@ function generateJs() {
 
     function markThoughtBody(element) {
         if (!element || element.nodeType !== Node.ELEMENT_NODE) return;
-        if (!element.hasAttribute(THOUGHT_BODY_ATTR)) {
-            element.setAttribute(THOUGHT_BODY_ATTR, 'true');
-        }
+        if (element.hasAttribute(THOUGHT_BODY_ATTR)) return;
+        element.setAttribute(THOUGHT_BODY_ATTR, 'true');
         blockedCacheVersion++;
         scheduleThoughtTranslation();
     }
 
     function markAgentBody(element) {
         if (!element || element.nodeType !== Node.ELEMENT_NODE) return;
-        if (!element.hasAttribute(AGENT_BODY_ATTR)) {
-            element.setAttribute(AGENT_BODY_ATTR, 'true');
-        }
+        if (element.hasAttribute(AGENT_BODY_ATTR)) return;
+        element.setAttribute(AGENT_BODY_ATTR, 'true');
         blockedCacheVersion++;
         scheduleThoughtTranslation();
+    }
+
+    function markThinkingTriggers() {
+        const buttons = document.querySelectorAll('button[data-testid="thinking-collapsible-trigger"]');
+        for (const button of buttons) {
+            if (!button.hasAttribute('data-ag-thought-header')) {
+                button.setAttribute('data-ag-thought-header', 'true');
+            }
+            const body = button.nextElementSibling;
+            if (body && (body.tagName === 'DIV' || body.tagName === 'SECTION')) {
+                markThoughtBody(body);
+            }
+        }
     }
 
     function markThoughtContentSibling(node) {
@@ -7665,6 +7676,7 @@ function getDynamicProductUiTranslation(value, node = null) {
     function scanThoughtBodies() {
         if (!thoughtMtBooted || !isThoughtMtEnabled()) return;
         if (Date.now() < thoughtMtDisabledUntil) return;
+        markThinkingTriggers();
         const bodies = document.querySelectorAll('[' + THOUGHT_BODY_ATTR + '="true"], [' + AGENT_BODY_ATTR + '="true"]');
         for (const body of bodies) {
             if (!body.getClientRects().length) continue;
