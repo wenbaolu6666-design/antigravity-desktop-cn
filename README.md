@@ -53,7 +53,10 @@ Antigravity 更新会替换 `app.asar`。插件在每次新会话启动时只做
 ## 动态文案
 
 - 首页问候语按当前登录用户名动态生成，**不写死任何姓名**。
-- 思考等级只在模型选择器内翻译为 `低/中/高/极高/最高`，模型名里的 `High/Medium` 保持原样。`r`n- 模型可用性通知覆盖 `currently/now available`、`subscribers/plans`、`available only to`、`currently unavailable` 等句式，并保留模型名与日期。
+- 思考等级只在模型选择器内翻译为 `低/中/高/极高/最高`，模型名里的 `High/Medium` 保持原样。
+- 模型可用性通知覆盖 `currently/now available`、`subscribers/plans`、`available only to`、`currently unavailable` 等句式，并保留模型名与日期。
+- 智能体活动流补充 `Canceled/Cancelled`、`Killed`、`Checked`、`Created`、`Started`、`Stopped`、`Completed`、`Failed` 等动词，以及 `search/task/run/subagent/command/file` 等宾语；`$Qc`、文件名、扩展名与 `+10 -0` 计数保持原样。
+- “思考”块正文支持按需显示中文译文：仅在展开且文本稳定后，将纯英文段落批量发送到 Google 翻译接口，译文只替换页面显示，不写回会话数据；结果按原文缓存。默认开启，可用 `localStorage.setItem('ag-zh-thought-mt', 'off')` 关闭，`localStorage.removeItem('ag-zh-thought-mt')` 恢复。该功能需要联网，关闭后思考正文保持英文。
 - 回归测试：`node scripts/test-localization-rules.js`
 ## 插件边界（重要）
 
@@ -112,7 +115,7 @@ pwsh -File .\installer\install-plugin.ps1
 > **内容隔离与匹配机制说明（开发者必读）**：
 >
 > - **全方位内容禁区隔离**：
->   - **会话与思考流隔离**：默认跳过用户消息（`data-testid="user-input-step"`，仅放行 `Commented on:` 等固定 UI 标签）、模型思考正文（Thought 流式块，仅精确放行模型不可用倒计时重试等固定状态提示）、散文段落及工具活动折叠块（如 `Explored/Edited X files`、`Ran X commands`），状态区仅翻译顶层进度与耗时（如 `工作中`、`正在压缩`、`工作了 XX 分钟`）。
+>   - **会话与思考流隔离**：默认跳过用户消息（`data-testid="user-input-step"`，仅放行 `Commented on:` 等固定 UI 标签）、散文段落及工具活动折叠块（如 `Explored/Edited X files`、`Ran X commands`），状态区仅翻译顶层进度与耗时（如 `工作中`、`正在压缩`、`工作了 XX 分钟`）。模型“思考”正文不再整块跳过，而是标记为 `data-ag-thought-body`，由独立的按需翻译队列处理：只译纯英文段落，跳过代码块、路径与标识符，译文仅存在于页面显示层。
 >   - **文件树、路径与代码/图标隔离**：通过 `WeakMap` 缓存与整树剪枝，直接跳过工作区文件树（`role="tree"` / `treeitem`）、辅助面板路径面包屑（`File path breadcrumbs`）、动态文件/目录标签页、变更文件列表路径、Monaco 编辑器、代码预览区与代码块（`.code-line` / `.line-content` / `.code-block` / `data-line-tokens`）、终端及图标字体节点（`.google-symbols` / `.codicon` 等），确保原文件名、目录路径与图标绝不被误译。
 >   - **自定义禁区**：任意容器添加 `data-ag-localization-skip` 属性即可显式禁用其子树翻译。
 > - **核心匹配与性能机制**：
@@ -358,7 +361,7 @@ AI 会自动激活内置技能并调用原生 Node.js 工具，同时以官方�
    - 引入编码保护（GBK/CRLF 隔离）、macOS 隔离属性修复与由内而外应用自签名、以及权限自适应机制，杜绝 Windows 控制台乱码、macOS 签名失效闪退与 Linux 权限异常。
 
 2. **严格的内容隔离与高安全渲染保护边界**：
-   - **用户消息与思考流绝对隔离**：严格适配客户端的 `data-testid="user-input-step"`、`data-ag-localization-skip`、模型思考正文及会话工具活动折叠区禁区机制，坚决不翻译、不篡改用户提示词正文、模型思考过程、代码块与终端输出，防止误译与数据污染。
+   - **用户消息与思考流隔离**：严格适配客户端的 `data-testid="user-input-step"`、`data-ag-localization-skip` 及会话工具活动折叠区禁区机制，坚决不翻译、不篡改用户提示词正文、代码块与终端输出。模型思考正文仅在显示层按需翻译为中文，不写回会话数据；关闭开关后完全保留英文原文，避免误译与数据污染。
    - **分级精准匹配与零阻塞遍历**：结合独立 UI 控件边界守卫（`isIsolatedUiControlLabel`）、带单词边界保护的长句替换规则，以及 `WeakMap` 祖先缓存与 Monaco/代码行整树剪枝，杜绝短词误伤非界面文本并保障大型设置面板与代码预览流畅无卡顿。
 
 3. **原生极速注入架构（零网络依赖与秒级注入）**：

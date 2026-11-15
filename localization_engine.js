@@ -145,6 +145,7 @@ function generateJs() {
     const AUTO_TRANSLATE_PROTECTED_TAGS = new Set(['CODE', 'PRE', 'INPUT', 'TEXTAREA']);
     const BLOCKED_TEST_IDS = new Set(['user-input-step']);
     const SKIP_TRANSLATION_ATTR = 'data-ag-localization-skip';
+    const THOUGHT_BODY_ATTR = 'data-ag-thought-body';
 
     function norm(s) {
         if (!s) return '';
@@ -779,6 +780,21 @@ function generateJs() {
         return false;
     }
 
+    function isThoughtHeaderText(text) {
+        const value = norm(text || '');
+        if (!value || value.length > 80) return false;
+        return /^(?:Thought|Thinking|Reasoning|Reasoned|Deep thought|思考|正在思考|思考中|思维)/i.test(value);
+    }
+
+    function markThoughtBody(element) {
+        if (!element || element.nodeType !== Node.ELEMENT_NODE) return;
+        if (!element.hasAttribute(THOUGHT_BODY_ATTR)) {
+            element.setAttribute(THOUGHT_BODY_ATTR, 'true');
+        }
+        blockedCacheVersion++;
+        scheduleThoughtTranslation();
+    }
+
     function markThoughtContentSibling(node) {
         if (!node) return;
         try {
@@ -786,11 +802,15 @@ function generateJs() {
             for (let depth = 0; depth < 3 && curr; depth++) {
                 if (curr === document.body || curr === document.documentElement) break;
                 const tag = curr.tagName ? curr.tagName.toUpperCase() : '';
+                const headerText = getBoundedTextContent(curr, 6, 80) || curr.textContent || '';
+                const thoughtHeader = isThoughtHeaderText(headerText);
                 if (tag === 'DETAILS') {
+                    const summary = Array.from(curr.children || []).find(child => child.tagName && child.tagName.toUpperCase() === 'SUMMARY');
+                    const detailsThought = isThoughtHeaderText(summary ? (summary.textContent || '') : headerText);
                     for (const child of curr.children) {
-                        if (child.tagName !== 'SUMMARY') {
-                            child.setAttribute(SKIP_TRANSLATION_ATTR, 'true');
-                        }
+                        if (child.tagName === 'SUMMARY') continue;
+                        if (detailsThought) markThoughtBody(child);
+                        else child.setAttribute(SKIP_TRANSLATION_ATTR, 'true');
                     }
                     blockedCacheVersion++;
                     return;
@@ -813,7 +833,8 @@ function generateJs() {
                     const nextTag = next.tagName ? next.tagName.toUpperCase() : '';
                     if (nextTag === 'DIV' || nextTag === 'SECTION') {
                         curr.setAttribute('data-ag-thought-header', 'true');
-                        next.setAttribute(SKIP_TRANSLATION_ATTR, 'true');
+                        if (thoughtHeader) markThoughtBody(next);
+                        else next.setAttribute(SKIP_TRANSLATION_ATTR, 'true');
                         blockedCacheVersion++;
                         return;
                     }
@@ -951,6 +972,10 @@ function generateJs() {
         }
 
         if (el.hasAttribute(SKIP_TRANSLATION_ATTR)) {
+            blockedZoneCache.set(el, -1);
+            return 2;
+        }
+        if (el.hasAttribute(THOUGHT_BODY_ATTR)) {
             blockedZoneCache.set(el, -1);
             return 2;
         }
@@ -1438,11 +1463,36 @@ function generateJs() {
             'Edited': '已编辑',
             'Running': '正在运行',
             'Ran': '已运行',
-            'Working': '工作中'
+            'Working': '工作中',
+            'Canceled': '已取消',
+            'Cancelled': '已取消',
+            'Killed': '已终止',
+            'Checked': '已检查',
+            'Created': '已创建',
+            'Searched': '已搜索',
+            'Started': '已启动',
+            'Stopped': '已停止',
+            'Completed': '已完成',
+            'Failed': '失败',
+            'Launched': '已启动'
         };
         let translated = fixed[text] || null;
         if (!translated) {
-            const prefixed = text.match(/^(Reading|Analyzed|Analyzing|Listing|Explored|Exploring|Edited|Editing|Running|Ran)\\s+(.+)$/i);
+            const nounMap = {
+                'search': '搜索', 'searches': '搜索',
+                'run': '运行', 'runs': '运行',
+                'task': '任务', 'tasks': '任务',
+                'subagent': '子智能体', 'subagents': '子智能体',
+                'command': '命令', 'commands': '命令',
+                'file': '文件', 'files': '文件',
+                'tool': '工具', 'tools': '工具',
+                'query': '查询', 'queries': '查询',
+                'request': '请求', 'requests': '请求'
+            };
+            translated = nounMap[text.toLowerCase()] || null;
+        }
+        if (!translated) {
+            const prefixed = text.match(/^(Reading|Analyzed|Analyzing|Listing|Explored|Exploring|Edited|Editing|Running|Ran|Canceled|Cancelled|Killed|Checked|Created|Searched|Started|Stopped|Completed|Failed|Launched)\\s+(.+)$/i);
             if (prefixed && prefixed[2].length <= 36) {
                 const key = prefixed[1][0].toUpperCase() + prefixed[1].slice(1).toLowerCase();
                 if (fixed[key]) translated = fixed[key] + ' ' + prefixed[2];
@@ -1472,6 +1522,20 @@ function generateJs() {
         else if ((match = text.match(/^Opened browser: (.+)$/i))) result = '已打开浏览器：' + match[1];
         if (!result) {
             const prefixes = [
+                [/^Canceled\\s+search\\b/i, '已取消搜索'],
+                [/^Cancelled\\s+search\\b/i, '已取消搜索'],
+                [/^Canceled\\s+run\\b/i, '已取消运行'],
+                [/^Cancelled\\s+run\\b/i, '已取消运行'],
+                [/^Killed\\s+task\\b/i, '已终止任务'],
+                [/^Checked\\s+task\\b/i, '已检查任务'],
+                [/^Canceled\\b/i, '已取消'],
+                [/^Cancelled\\b/i, '已取消'],
+                [/^Killed\\b/i, '已终止'],
+                [/^Checked\\b/i, '已检查'],
+                [/^Started\\b/i, '已启动'],
+                [/^Stopped\\b/i, '已停止'],
+                [/^Completed\\b/i, '已完成'],
+                [/^Failed\\b/i, '失败'],
                 [/^Searched marketplace for\\b/i, '已在插件市场搜索'],
                 [/^Searched for files\\b/i, '已搜索文件'],
                 [/^Searched for\\b/i, '已搜索'],
@@ -2024,6 +2088,46 @@ function generateJs() {
         return true;
     }
 
+    function getActivityRowPhraseTranslation(value) {
+        const text = norm(value || '');
+        if (!text || text.length > 160) return null;
+        const verbs = {
+            canceled: '已取消', cancelled: '已取消',
+            killed: '已终止', checked: '已检查',
+            created: '已创建', searched: '已搜索',
+            started: '已启动', stopped: '已停止',
+            completed: '已完成', failed: '失败',
+            launched: '已启动', search: '搜索',
+            run: '运行', check: '检查', create: '创建',
+            read: '读取', edit: '编辑', list: '列出',
+            explore: '浏览', analyze: '分析'
+        };
+        const nouns = {
+            search: '搜索', searches: '搜索',
+            run: '运行', runs: '运行',
+            task: '任务', tasks: '任务',
+            subagent: '子智能体', subagents: '子智能体',
+            command: '命令', commands: '命令',
+            file: '文件', files: '文件',
+            tool: '工具', tools: '工具',
+            query: '查询', queries: '查询',
+            request: '请求', requests: '请求'
+        };
+        const match = text.match(/^(Canceled|Cancelled|Killed|Checked|Created|Searched|Started|Stopped|Completed|Failed|Launched)\\s+([A-Za-z][A-Za-z0-9_.-]*)([\\s\\S]*)$/i);
+        if (!match) return null;
+        const verb = verbs[match[1].toLowerCase()];
+        if (!verb) return null;
+        const noun = nouns[match[2].toLowerCase()];
+        let rest = match[3] || '';
+        if (noun) {
+            rest = rest.replace(/^\\s+(Search|Run|Check|Create|Read|Edit|List|Explore|Analyze)\\b/i, function (m, word) {
+                return ' ' + (verbs[word.toLowerCase()] || word) + ' ';
+            });
+            return (verb + noun + rest).replace(/ {2,}/g, ' ').trim();
+        }
+        return (verb + ' ' + match[2] + rest).replace(/ {2,}/g, ' ').trim();
+    }
+
     function translateActivityHeaderText(element) {
         if (!element || element.nodeType !== Node.ELEMENT_NODE) return false;
         const nodes = collectTextNodes(element);
@@ -2036,7 +2140,17 @@ function generateJs() {
             'Editing': '正在编辑', 'Edited': '已编辑',
             'Listing': '正在列出', 'Listed': '已列出',
             'Exploring': '正在浏览', 'Explored': '已浏览',
-            'Thinking': '正在思考', 'Thought': '思考'
+            'Thinking': '正在思考', 'Thought': '思考',
+            'Canceled': '已取消', 'Cancelled': '已取消',
+            'Killed': '已终止', 'Checked': '已检查',
+            'Created': '已创建', 'Searched': '已搜索',
+            'Started': '已启动', 'Stopped': '已停止',
+            'Completed': '已完成', 'Failed': '失败',
+            'Launched': '已启动',
+            'search': '搜索', 'task': '任务', 'run': '运行',
+            'subagent': '子智能体', 'subagents': '子智能体',
+            'command': '命令', 'file': '文件', 'tool': '工具',
+            'query': '查询', 'request': '请求'
         };
         for (const node of nodes) {
             const raw = node.nodeValue || '';
@@ -2046,6 +2160,13 @@ function generateJs() {
                 const leading = (raw.match(/^\\s*/) || [''])[0];
                 const trailing = (raw.match(/\\s*$/) || [''])[0];
                 changed = replaceTextNode(node, leading + map[trimmed] + trailing) || changed;
+                continue;
+            }
+            const phrase = getActivityRowPhraseTranslation(trimmed);
+            if (phrase && phrase !== trimmed) {
+                const leading = (raw.match(/^\\s*/) || [''])[0];
+                const trailing = (raw.match(/\\s*$/) || [''])[0];
+                changed = replaceTextNode(node, leading + phrase + trailing) || changed;
                 continue;
             }
             if (/Exited with code\\s+\\d+/i.test(raw)) {
@@ -7132,6 +7253,9 @@ function getDynamicProductUiTranslation(value, node = null) {
             if (curr.hasAttribute?.(SKIP_TRANSLATION_ATTR)) {
                 sawThoughtSkip = true;
             }
+            if (curr.hasAttribute?.(THOUGHT_BODY_ATTR)) {
+                sawThoughtSkip = true;
+            }
             const prev = curr.previousElementSibling;
             if (prev && prev.hasAttribute?.('data-ag-thought-header') && curr.parentElement && curr.parentElement.children.length === 2) {
                 sawThoughtSkip = true;
@@ -7174,6 +7298,292 @@ function getDynamicProductUiTranslation(value, node = null) {
         return false;
     }
 
+    const THOUGHT_MT_MAX_CHARS = 4200;
+    const THOUGHT_MT_SEGMENT = '@@AGSEG@@';
+    const THOUGHT_MT_STABLE_MS = 900;
+    const thoughtMtCache = new Map();
+    const thoughtMtPending = new Map();
+    const thoughtMtSeen = new WeakMap();
+    const thoughtMtQueue = [];
+    let thoughtMtRunning = false;
+    let thoughtMtScanTimer = 0;
+    let thoughtMtBooted = false;
+    let thoughtMtDisabledUntil = 0;
+    let thoughtMtLastError = '';
+
+    function isThoughtMtEnabled() {
+        try {
+            return localStorage.getItem('ag-zh-thought-mt') !== 'off';
+        } catch (e) {
+            return true;
+        }
+    }
+
+    function isTranslatableThoughtText(value, allowShort) {
+        const text = String(value || '').trim();
+        if (text.length < (allowShort ? 6 : 12)) return false;
+        if (!/[A-Za-z]/.test(text)) return false;
+        const cjkCount = (text.match(/[\\u3400-\\u9fff]/g) || []).length;
+        if (cjkCount > 0 && cjkCount / text.length > 0.12) return false;
+        const letterCount = (text.match(/[A-Za-z]/g) || []).length;
+        if (letterCount / text.length < 0.35) return false;
+        const words = text.split(/\\s+/).filter(function (word) { return /[A-Za-z]{2,}/.test(word); });
+        if (words.length < 3) {
+            if (!allowShort || words.length < 1) return false;
+            const stopWords = new Set(['the', 'a', 'an', 'of', 'to', 'in', 'on', 'and', 'or', 'is', 'are', 'was', 'were', 'be', 'by', 'for', 'with', 'as', 'at', 'from', 'that', 'this', 'it']);
+            if (stopWords.has(text.replace(/[^A-Za-z]/g, '').toLowerCase())) return false;
+        }
+        if (/^Model unavailable, retrying/i.test(text)) return false;
+        return true;
+    }
+
+    function protectThoughtLiterals(value) {
+        const saved = [];
+        let text = value.replace(/\x60[^\x60\\n]{1,120}\x60/g, function (match) {
+            saved.push(match);
+            return '@@AGP' + (saved.length - 1) + '@@';
+        });
+        text = text.replace(/(?:[A-Za-z]:\\\\[^\\s,;)]+|\\/(?:[\\w.@-]+\\/){2,}[\\w.@-]*)/g, function (match) {
+            saved.push(match);
+            return '@@AGP' + (saved.length - 1) + '@@';
+        });
+        return { text: text, saved: saved };
+    }
+
+    function restoreThoughtLiterals(value, saved) {
+        let text = value;
+        for (let i = 0; i < saved.length; i++) {
+            const marker = new RegExp('@@\\\\s*AGP' + i + '\\\\s*@@', 'g');
+            text = text.replace(marker, saved[i]);
+        }
+        return text;
+    }
+
+    function polishThoughtTranslation(source, translated) {
+        let text = translated;
+        if (/\\btokens?\\b/i.test(source)) {
+            text = text.replace(/代币/g, '令牌');
+        }
+        return text;
+    }
+
+    function splitThoughtText(value, maxChars) {
+        const text = String(value || '');
+        if (text.length <= maxChars) return [text];
+        const parts = [];
+        let rest = text;
+        while (rest.length > maxChars) {
+            let cut = -1;
+            const windowText = rest.slice(0, maxChars);
+            const matches = windowText.match(/[.!?。！？](?:\\s|$)/g);
+            if (matches && matches.length) {
+                cut = windowText.lastIndexOf(matches[matches.length - 1]) + 1;
+            }
+            if (cut < maxChars * 0.4) cut = rest.lastIndexOf(' ', maxChars);
+            if (cut < maxChars * 0.4) cut = maxChars;
+            parts.push(rest.slice(0, cut).trim());
+            rest = rest.slice(cut).trim();
+        }
+        if (rest) parts.push(rest);
+        return parts;
+    }
+
+    function requestThoughtTranslation(value) {
+        const body = new URLSearchParams({ q: value }).toString();
+        const controller = typeof AbortController === 'function' ? new AbortController() : null;
+        const timer = controller ? setTimeout(function () { controller.abort(); }, 15000) : 0;
+        const options = {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+            body: body
+        };
+        if (controller) options.signal = controller.signal;
+        return fetch('https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=zh-CN&dt=t', options)
+            .then(function (response) {
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                return response.json();
+            })
+            .then(function (data) {
+                const segments = data && data[0] ? data[0] : [];
+                return segments.map(function (item) { return item && item[0] ? item[0] : ''; }).join('');
+            })
+            .finally(function () { if (timer) clearTimeout(timer); });
+    }
+
+    async function translateThoughtValue(value) {
+        if (thoughtMtCache.has(value)) return thoughtMtCache.get(value);
+        if (thoughtMtPending.has(value)) return thoughtMtPending.get(value);
+        const task = (async function () {
+            const protectedValue = protectThoughtLiterals(value);
+            const chunks = splitThoughtText(protectedValue.text, THOUGHT_MT_MAX_CHARS);
+            let translated = '';
+            for (const chunk of chunks) {
+                translated += await requestThoughtTranslation(chunk);
+            }
+            const restored = restoreThoughtLiterals(translated, protectedValue.saved);
+            const polished = polishThoughtTranslation(value, restored).trim();
+            if (thoughtMtCache.size > 800) thoughtMtCache.clear();
+            thoughtMtCache.set(value, polished);
+            return polished;
+        })();
+        thoughtMtPending.set(value, task);
+        try {
+            return await task;
+        } finally {
+            thoughtMtPending.delete(value);
+        }
+    }
+
+    function applyThoughtTranslation(node, raw, sourceText, translated) {
+        if (!node || !node.isConnected) return false;
+        if ((node.nodeValue || '').trim() !== sourceText) return false;
+        const leading = (raw.match(/^\\s*/) || [''])[0];
+        const trailing = (raw.match(/\\s*$/) || [''])[0];
+        const value = leading + String(translated || '').trim() + trailing;
+        if (!value.trim() || value === raw) return false;
+        translatedValues.set(node, value);
+        node.nodeValue = value;
+        return true;
+    }
+
+    function collectThoughtSegments(root) {
+        const segments = [];
+        const visit = function (node) {
+            if (!node) return;
+            if (node.nodeType === Node.TEXT_NODE) {
+                const raw = node.nodeValue || '';
+                const text = raw.trim();
+                const prevSibling = node.previousSibling;
+                const nextSibling = node.nextSibling;
+                const adjacentInline = !!(
+                    (prevSibling && prevSibling.nodeType === Node.ELEMENT_NODE && /^(CODE|KBD|SAMP)$/.test(prevSibling.tagName || '')) ||
+                    (nextSibling && nextSibling.nodeType === Node.ELEMENT_NODE && /^(CODE|KBD|SAMP)$/.test(nextSibling.tagName || ''))
+                );
+                if (!isTranslatableThoughtText(text, adjacentInline)) return;
+                const seen = thoughtMtSeen.get(node);
+                if (!seen || seen.text !== text) {
+                    thoughtMtSeen.set(node, { text: text, since: Date.now() });
+                    return;
+                }
+                if (Date.now() - seen.since < THOUGHT_MT_STABLE_MS) return;
+                if (thoughtMtCache.has(text)) {
+                    applyThoughtTranslation(node, raw, text, thoughtMtCache.get(text));
+                    return;
+                }
+                segments.push({
+                    node: node,
+                    text: text,
+                    leading: (raw.match(/^\\s*/) || [''])[0],
+                    trailing: (raw.match(/\\s*$/) || [''])[0]
+                });
+                return;
+            }
+            if (node.nodeType !== Node.ELEMENT_NODE) return;
+            const tag = node.tagName ? node.tagName.toUpperCase() : '';
+            if (BLOCKED_TAGS_SET.has(tag) || tag === 'KBD' || tag === 'SAMP') return;
+            if (node.getAttribute('translate') === 'no') return;
+            if (node.hasAttribute(SKIP_TRANSLATION_ATTR)) return;
+            const cls = typeof node.className === 'string' ? node.className : '';
+            if (cls && /(?:^|\\s)notranslate(?:\\s|$)/.test(cls)) return;
+            for (const child of node.childNodes) visit(child);
+        };
+        visit(root);
+        return segments;
+    }
+
+    async function translateThoughtSegments(segments) {
+        let start = 0;
+        while (start < segments.length) {
+            const batch = [];
+            let total = 0;
+            for (let i = start; i < segments.length; i++) {
+                const length = segments[i].text.length + 24;
+                if (batch.length && total + length > THOUGHT_MT_MAX_CHARS) break;
+                batch.push(segments[i]);
+                total += length;
+            }
+            const joined = batch.map(function (segment) { return segment.text; }).join('\\n\\n' + THOUGHT_MT_SEGMENT + '\\n\\n');
+            let translated = '';
+            try {
+                translated = await translateThoughtValue(joined);
+            } catch (error) {
+                const message = String((error && error.message) || error);
+                if (/429|too many/i.test(message)) {
+                    thoughtMtDisabledUntil = Date.now() + 120000;
+                }
+                if (message !== thoughtMtLastError) {
+                    thoughtMtLastError = message;
+                    console.warn('[Antigravity 汉化] 思考正文翻译失败：' + message);
+                }
+                return;
+            }
+            const parts = translated.split(THOUGHT_MT_SEGMENT).map(function (part) { return part.trim(); });
+            if (parts.length !== batch.length) {
+                for (const segment of batch) {
+                    try {
+                        const one = await translateThoughtValue(segment.text);
+                        applyThoughtTranslation(segment.node, segment.node.nodeValue || '', segment.text, one);
+                    } catch (error) {}
+                }
+            } else {
+                for (let i = 0; i < batch.length; i++) {
+                    applyThoughtTranslation(batch[i].node, batch[i].node.nodeValue || '', batch[i].text, parts[i]);
+                }
+            }
+            start += batch.length;
+        }
+    }
+
+    async function processThoughtQueue() {
+        if (thoughtMtRunning) return;
+        thoughtMtRunning = true;
+        try {
+            while (thoughtMtQueue.length) {
+                const body = thoughtMtQueue.shift();
+                if (!body || !body.isConnected) continue;
+                if (body.getClientRects().length === 0) continue;
+                const segments = collectThoughtSegments(body);
+                if (!segments.length) continue;
+                await translateThoughtSegments(segments);
+                await new Promise(function (resolve) { setTimeout(resolve, 350); });
+            }
+        } finally {
+            thoughtMtRunning = false;
+        }
+    }
+
+    function scanThoughtBodies() {
+        if (!thoughtMtBooted || !isThoughtMtEnabled()) return;
+        if (Date.now() < thoughtMtDisabledUntil) return;
+        const bodies = document.querySelectorAll('[' + THOUGHT_BODY_ATTR + '="true"]');
+        for (const body of bodies) {
+            if (!body.getClientRects().length) continue;
+            if (thoughtMtQueue.indexOf(body) >= 0) continue;
+            if (collectThoughtSegments(body).length === 0) continue;
+            thoughtMtQueue.push(body);
+        }
+        if (thoughtMtQueue.length) void processThoughtQueue();
+    }
+
+    function scheduleThoughtTranslation() {
+        if (!thoughtMtBooted || thoughtMtScanTimer) return;
+        thoughtMtScanTimer = setTimeout(function () {
+            thoughtMtScanTimer = 0;
+            scanThoughtBodies();
+        }, 600);
+    }
+
+    function startThoughtTranslation() {
+        if (thoughtMtBooted) return;
+        thoughtMtBooted = true;
+        if (!isThoughtMtEnabled()) {
+            console.info('[Antigravity 汉化] 思考正文翻译已关闭；如需开启，执行 localStorage.removeItem("ag-zh-thought-mt") 并刷新。');
+            return;
+        }
+        console.info('[Antigravity 汉化] 思考正文翻译已启用；如需关闭，执行 localStorage.setItem("ag-zh-thought-mt", "off") 并刷新。');
+        setTimeout(scanThoughtBodies, 1200);
+    }
+
     function translateNode(node, parentContainersScanned = false, visitedElements = null) {
         try {
             if (!node) return;
@@ -7196,6 +7606,11 @@ function getDynamicProductUiTranslation(value, node = null) {
                 }
                 const prev = node.previousElementSibling;
                 if (prev && prev.hasAttribute('data-ag-thought-header') && node.parentElement && node.parentElement.children.length === 2) {
+                    const prevText = getBoundedTextContent(prev, 6, 80) || prev.textContent || '';
+                    if (isThoughtHeaderText(prevText)) {
+                        markThoughtBody(node);
+                        return;
+                    }
                     node.setAttribute(SKIP_TRANSLATION_ATTR, 'true');
                     blockedZoneCache.set(node, -1);
                     if (isPureThoughtSkipContext(node)) {
@@ -7940,6 +8355,8 @@ function getDynamicProductUiTranslation(value, node = null) {
         if (!target || engineStarted) return;
 
         engineStarted = true;
+        startThoughtTranslation();
+        setInterval(function () { scanThoughtBodies(); }, 1500);
         try {
             translateNode(target);
             observer.observe(target, obsOpts);

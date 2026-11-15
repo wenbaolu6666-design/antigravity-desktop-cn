@@ -27,8 +27,11 @@ assert.strictEqual(workspaceName(workspaceRow, 'Codex Session Import Plugin'), '
 assert.strictEqual(workspaceName(workspaceRow, 'Codex Session Import'), 'Codex 会话导入');
 assert.strictEqual(workspaceName(workspaceRow, 'Translate Skills Into Chinese'), '将技能翻译成中文');
 assert.strictEqual(workspaceName(workspaceRow, 'My Own Workspace'), null);
-assert.strictEqual(workspaceName(normalNode, 'Codex Session Import'), null);const activityDetail = loadFunction('getToolActivityDetailTranslation');
+assert.strictEqual(workspaceName(normalNode, 'Codex Session Import'), null);
+const activityDetail = loadFunction('getToolActivityDetailTranslation');
 const activityStatus = loadFunction('getToolActivityStatusTranslation');
+const activityPhrase = loadFunction('getActivityRowPhraseTranslation');
+const thoughtHeader = loadFunction('isThoughtHeaderText');
 
 const greetingNode = { nodeType: 3, parentElement: { className: 'home-greeting-title', parentElement: null, getAttribute: () => null } };
 for (const name of ['张三', '李四', 'Alice', 'Bob Smith', '欧阳娜娜']) {
@@ -65,9 +68,22 @@ assert.strictEqual(activityDetail(activityNode, 'Searched marketplace for "codex
 assert.strictEqual(activityDetail(activityNode, 'Searched codex conversation history session import export antigravity'), '已搜索 codex conversation history session import export antigravity');
 assert.strictEqual(activityDetail(activityNode, 'Fetched dataset'), '已获取 dataset');
 assert.strictEqual(activityDetail(activityNode, 'Created file'), '已创建 file');
-assert.strictEqual(activityDetail(activityNode, 'Compacting conversation'), '正在压缩 conversation');assert.strictEqual(activityDetail(proseNode, 'Searched something'), null);
+assert.strictEqual(activityDetail(activityNode, 'Compacting conversation'), '正在压缩 conversation');
+assert.strictEqual(activityDetail(proseNode, 'Searched something'), null);
 assert.strictEqual(activityStatus(activityNode, 'Working'), '工作中');
 assert.strictEqual(activityStatus(proseNode, 'Working'), null);
+assert.strictEqual(activityStatus(activityNode, 'Canceled'), '已取消');
+assert.strictEqual(activityStatus(activityNode, 'Killed'), '已终止');
+assert.strictEqual(activityStatus(activityNode, 'Checked'), '已检查');
+assert.strictEqual(activityDetail(activityNode, 'Canceled run find_Qc.js'), '已取消运行 find_Qc.js');
+assert.strictEqual(activityDetail(activityNode, 'Killed task Search $Qc usages'), '已终止任务 Search $Qc usages');
+assert.strictEqual(activityPhrase('Canceled search $Qc usages'), '已取消搜索 $Qc usages');
+assert.strictEqual(activityPhrase('Killed task Search $Qc usages'), '已终止任务 搜索 $Qc usages');
+assert.strictEqual(activityPhrase('Created js find_Qc.js +10 -0'), '已创建 js find_Qc.js +10 -0');
+assert.strictEqual(thoughtHeader('思考 7 秒'), true);
+assert.strictEqual(thoughtHeader('Thought for 7s'), true);
+assert.strictEqual(thoughtHeader('工作了 44 秒'), false);
+assert.strictEqual(thoughtHeader('Worked for 44s'), false);
 
 console.log('本地化规则测试全部通过');
 
