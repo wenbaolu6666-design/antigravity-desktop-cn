@@ -3772,6 +3772,7 @@
   "Good to see you, ${...}. What's next?": "很高兴见到你，${...}。接下来做什么？",
   "Good to see you. What's next?": "很高兴见到你。接下来做什么？",
   "Exited with code ${...}": "退出码 ${...}",
+  "Exited with code ${...}.": "退出码 ${...}。",
   "Process exited with code ${...}.": "进程退出码 ${...}。",
   "Analyzed": "已分析",
   "Analyzing": "正在分析",

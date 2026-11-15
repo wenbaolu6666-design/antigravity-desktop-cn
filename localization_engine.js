@@ -3097,9 +3097,13 @@ function generateJs() {
     function getSkillPickerDisplayEntry(textNodes) {
         const values = textNodes.map(textNode => norm(textNode.nodeValue));
         return SKILL_PICKER_DISPLAY_ENTRIES.find(entry => {
-            const hasName = values.includes(entry.source) || values.includes(entry.display);
+            const hasName = values.some(v => {
+                const clean = v.replace(/^[/@]/, '');
+                return clean === entry.source || clean === entry.display || v === entry.source || v === entry.display;
+            });
             const hasDescription = entry.descriptions.some(description => {
-                return values.some(value => value === description || value.includes(description));
+                const descSnippet = description.length > 30 ? description.slice(0, 30) : description;
+                return values.some(value => value === description || value.includes(description) || (descSnippet.length >= 20 && value.includes(descSnippet)));
             });
             return hasName && hasDescription;
         }) || null;
@@ -3122,17 +3126,32 @@ function generateJs() {
         let changed = false;
         const nameNode = textNodes.find(textNode => {
             const v = norm(textNode.nodeValue);
-            return v === entry.source || v === entry.display;
+            const clean = v.replace(/^[/@]/, '');
+            return clean === entry.source || clean === entry.display || v === entry.source || v === entry.display;
         });
-        if (nameNode && norm(nameNode.nodeValue) === entry.source) {
-            if (replaceTextNode(nameNode, entry.display)) changed = true;
+        if (nameNode) {
+            const rawVal = norm(nameNode.nodeValue);
+            const prefix = rawVal.startsWith('/') ? '/' : (rawVal.startsWith('@') ? '@' : '');
+            const targetDisplay = prefix + entry.display;
+            if (rawVal !== targetDisplay) {
+                if (replaceTextNode(nameNode, targetDisplay)) changed = true;
+            }
         }
 
+        const targetDescTrans = entry.descriptions.find(d => /[\u4e00-\u9fa5]/.test(d));
         for (const tn of textNodes) {
             if (tn === nameNode) continue;
             const rawVal = norm(tn.nodeValue);
             if (!rawVal || rawVal.length < 4) continue;
-            const trans = map.get(rawVal) || lowerMap.get(rawVal.toLowerCase());
+            let trans = map.get(rawVal) || lowerMap.get(rawVal.toLowerCase());
+            if (!trans && rawVal.endsWith('.')) trans = map.get(rawVal.slice(0, -1)) || lowerMap.get(rawVal.slice(0, -1).toLowerCase());
+            if (!trans && !rawVal.endsWith('.')) trans = map.get(rawVal + '.') || lowerMap.get((rawVal + '.').toLowerCase());
+            if (!trans && targetDescTrans) {
+                const isMatchDesc = entry.descriptions.some(d => !/[\u4e00-\u9fa5]/.test(d) && (d === rawVal || d.includes(rawVal) || rawVal.includes(d)));
+                if (isMatchDesc) {
+                    trans = targetDescTrans;
+                }
+            }
             if (trans && replaceTextNode(tn, trans)) {
                 changed = true;
             }
@@ -3143,12 +3162,11 @@ function generateJs() {
 
     function translateSkillPickerNameTextNode(node, value) {
         const normalized = norm(value);
-        if (!SKILL_PICKER_DISPLAY_ENTRIES.some(entry => entry.source === normalized)) return false;
+        const cleanValue = normalized.replace(/^[/@]/, '');
+        if (!SKILL_PICKER_DISPLAY_ENTRIES.some(entry => entry.source === normalized || entry.source === cleanValue)) return false;
 
-        // React can replace only the skill-name text node after the row was
-        // translated. The exact-name prefilter keeps this ancestor walk narrow.
         let current = node.parentElement;
-        for (let depth = 0; current && depth < 4; depth++) {
+        for (let depth = 0; current && depth < 6; depth++) {
             if (translateSkillPickerEntry(current)) return true;
             current = current.parentElement || (current.getRootNode?.().host ?? null);
         }
@@ -3157,15 +3175,17 @@ function generateJs() {
 
     function translateUsedSkillNameTextNode(node, value) {
         const normalized = norm(value);
-        const entry = SKILL_PICKER_DISPLAY_ENTRIES.find(entry => entry.source === normalized);
+        const cleanValue = normalized.replace(/^[/@]/, '');
+        const entry = SKILL_PICKER_DISPLAY_ENTRIES.find(entry => entry.source === normalized || entry.source === cleanValue);
         if (!entry) return false;
 
         let current = node.parentElement;
         for (let depth = 0; current && depth < 6; depth++) {
             if (current === document.body || current === document.documentElement) break;
             const text = current.textContent || '';
-            if (text.length <= 2500 && /(?:Skills?\\s+Used|已使用的技能)/i.test(text)) {
-                return replaceTextNode(node, entry.display);
+            if (text.length <= 2500 && /(?:Skills?\\s+Used|Used\\s+skills?|Using\\s+skill|Used\\s+skill|已使用的技能|使用技能|活跃技能|Active\\s+Skills|Installed\\s+Skills|已安装技能|Available\\s+Skills|可用技能|Skills)/i.test(text)) {
+                const prefix = normalized.startsWith('/') ? '/' : (normalized.startsWith('@') ? '@' : '');
+                return replaceTextNode(node, prefix + entry.display);
             }
             current = current.parentElement || (current.getRootNode?.().host ?? null);
         }
@@ -5471,8 +5491,7 @@ function getDynamicProductUiTranslation(value, node = null) {
         return false;
     }
 
-    const SKILL_PICKER_CONTAINER_REGEX = /(?:quick question without interrupting|align on a plan|team of agents to autonomously|recent successes or corrections|Boost multi-agent orchestrator|Antigravity Customization System|comprehensive guide, quick reference, and sitemap|render rich interactive HTML widgets|scheduled background automation|manage and create plugins|namespaced bundles of skills|MCP servers, skills, slash commands|other coding agents|Build, package, and debug MCP Apps|manage Google Docs|draft, and edit docs|and write your Google Docs|schedule events, and RSVP|draft, and send emails in Gmail|Run your Gmail inbox|manage Gmail messages, drafts, labels|format spreadsheets|edit, and export presentations|upload, download, and share files|Preview & Quota Heavy\\) Run a swarm|several agents working in parallel|native-swarm worker whose brief says it is the monitor|不中断主会话|通过访谈与我对齐|智能体团队自主应对|反思最近的成功或改进|Boost 多智能体编排器|个性化定制系统的综合指南|全面指南、快速参考和网站地图|交互式 HTML 小组件|定时后台自动化|计划后台自动化|管理和创建插件|迁移到一个新的 Antigravity 插件中|构建、打包和调试 MCP 应用|管理 Google 文档|起草和编辑文档|安排活动并回复邀请|在 Gmail 中搜索、阅读、起草并发送电子邮件|管理您的 Gmail 收件箱|管理 Gmail 邮件、草稿、标签|编写和格式化电子表格|导出演示文稿|上传、下载和共享文件|运行蜂群协作|指定为监控员的原生蜂群)/i;
-
+    const SKILL_PICKER_CONTAINER_REGEX = /(?:quick question without interrupting|align on a plan|team of agents to autonomously|recent successes or corrections|Boost multi-agent orchestrator|Antigravity Customization System|comprehensive guide, quick reference, and sitemap|render rich interactive HTML widgets|scheduled background automation|manage and create plugins|namespaced bundles of skills|MCP servers, skills, slash commands|other coding agents|Build, package, and debug MCP Apps|manage Google Docs|draft, and edit docs|and write your Google Docs|schedule events, and RSVP|draft, and send emails in Gmail|Run your Gmail inbox|manage Gmail messages, drafts, labels|format spreadsheets|edit, and export presentations|upload, download, and share files|Preview & Quota Heavy\\) Run a swarm|several agents working in parallel|native-swarm worker whose brief says it is the monitor|不中断主会话|通过访谈与我对齐|智能体团队自主应对|反思最近的成功或改进|Boost 多智能体编排器|个性化定制系统的综合指南|全面指南、快速参考和网站地图|交互式 HTML 小组件|定时后台自动化|计划后台自动化|管理和创建插件|迁移到一个新的 Antigravity 插件中|构建、打包和调试 MCP 应用|管理 Google 文档|起草和编辑文档|安排活动并回复邀请|在 Gmail 中搜索、阅读、起草并发送电子邮件|管理您的 Gmail 收件箱|管理 Gmail 邮件、草稿、标签|编写和格式化电子表格|导出演示文稿|上传、下载和共享文件|运行蜂群协作|指定为监控员的原生蜂群|long-running task extra thoroughly|Schedule a one-shot timer|step-by-step planning before execution|Web browsing, searching the web|keeps the facts behind the user's Overview|autonomous AI agents and multi-agent systems|Gemini API from the shell|code that calls the Gemini API|Gemini Live API|Gemini Omni|browse CLI for Browserbase|Chrome DevTools via MCP|Chrome DevTools MCP for accessibility|inspecting, debugging, and testing cookies|Largest Contentful Paint|memory leaks in JavaScript|troubleshoot connection and target issues|Interactive 3D biomolecular structure viewer|AlphaFold predicted structures|AlphaGenome|ChEMBL database|cheminformatics|ClinicalTrials.gov|ClinVar|dbSNP|Ontology Lookup Service|cis-Regulatory Elements|Ensembl database|Foldseek API|Genome Aggregation Database|GTEx|Human Protein Atlas|InterPro|JASPAR database|scientific papers, preprints, and publications on arXiv|bioRxiv and medRxiv|Europe PMC|OpenAlex scholarly database|NCBI databases using E-utilities|openFDA API|Open Targets Platform|experimentally-determined 3D structures|Ancient text restoration|multiple sequence alignment of proteins|homologous protein sequences using MMseqs2|PubChem|Search PubMed for scientific literature|render protein and molecular structures using PyMOL|QuickGO|2D chemical structure depictions|Reactome database|STRING database|Evolutionary Conservation scores|UniBind database|UniProtKB|uv Python package manager|reusable agent skill|持续且深入地执行长期任务|定时计划任务|细致的分步计划设计|网页浏览、网络搜索|解说员的原生蜂群|Antigravity SDK|从 Shell 调用 Gemini API|编写调用 Gemini API 的代码|Gemini Live API 实时流|Gemini Omni 视频生成|Browserbase 浏览器自动化|Chrome DevTools 进行高效调试|无障碍 (?:\\(a11y\\)|a11y)|Cookie、会话状态|最大内容绘制 (?:\\(LCP\\)|LCP)|内存泄漏|DevTools MCP 及相关文档排查|交互式 3D 生物大分子结构查看器|AlphaFold 预测结构|AlphaGenome|ChEMBL 数据库|化学信息学|ClinicalTrials.gov|ClinVar|dbSNP 数据库|本体查找服务|调控元件注册库|Ensembl 数据库|Foldseek API|基因组聚合数据库|人类蛋白质图谱|转录因子结合图谱|arXiv 上搜索科学论文|bioRxiv 和 medRxiv|Europe PMC|OpenAlex 学术数据库|NCBI 数据库检索|openFDA API|Open Targets 平台|生物大分子 3D 结构|古代文本复原|蛋白质多序列比对|同源蛋白质序列|PubChem 数据库|PubMed 中检索科学文献|PyMOL 可视化|QuickGO|2D 化学结构图像|Reactome 数据库|STRING 数据库|进化保守性评分|UniBind 数据库|UniProtKB|uv Python 包管理器|可复用的智能体技能)/i;
     function translateSwarmBoardEmptyBody(element) {
         if (!element || element.nodeType !== Node.ELEMENT_NODE) return false;
         const tag = element.tagName?.toUpperCase();

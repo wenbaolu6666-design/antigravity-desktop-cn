@@ -46,6 +46,15 @@ function walk(node, parent, uiContext = false) {
     for (const child of node) walk(child, parent, uiContext);
     return;
   }
+  if (node.type === 'CallExpression' && node.callee) {
+    const callee = src.slice(node.callee.start, node.callee.end);
+    if (callee === 'createElement' || callee.endsWith('.createElement')) {
+      for (let i = 0; i < node.arguments.length; i++) {
+        walk(node.arguments[i], node, i >= 2 ? true : uiContext);
+      }
+      return;
+    }
+  }
   if (node.type === 'Property') {
     const keyName = !node.computed && node.key.type === 'Identifier' ? node.key.name : (!node.computed && node.key.type === 'Literal' ? node.key.value : '');
     walk(node.key, node, uiContext);
