@@ -36,7 +36,16 @@ if (Test-Path -LiteralPath $eventFile) {
     $event = Get-Content -LiteralPath $eventFile -Raw | ConvertFrom-Json
     Write-Host ("最近事件：{0}（{1} -> {2}）{3}" -f $event.type, $event.fromVersion, $event.toVersion, $event.message)
 }
+$webDir = Join-Path $StateDir 'web'
+$webMarker = Join-Path $webDir '.web-bundle-ok'
+$webMain = Join-Path $webDir 'main.js'
+if ((Test-Path -LiteralPath $webMarker) -and (Test-Path -LiteralPath $webMain)) {
+    Write-Host ("外部 bundle：已启用（{0:N1} MB，源码级）" -f ((Get-Item $webMain).Length / 1MB)) -ForegroundColor Green
+} else {
+    Write-Host '外部 bundle：未启用（使用内嵌 UI + 运行时兜底）' -ForegroundColor Yellow
+}
 $backups = @(Get-ChildItem -LiteralPath (Join-Path $StateDir 'backups') -Filter '*.asar' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending)
 Write-Host ("原版备份：{0} 份" -f $backups.Count)
 if ($backups.Count -gt 0) { Write-Host ("最新备份：{0}" -f $backups[0].FullName) -ForegroundColor DarkGray }
 Write-Host ("插件运行时：{0}" -f $(if (Test-Path -LiteralPath (Join-Path $PluginDir 'runtime\localization_engine.js')) { '已内置' } else { '缺失' }))
+

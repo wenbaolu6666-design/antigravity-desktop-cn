@@ -23,9 +23,14 @@
   - `getHomeGreetingTranslation`：首页问候语翻译
 - 本 Fork 的中文文档与 README 增补
 
+## 第三方组件
+
+- `tools/vendor/acorn.js`：Acorn 8.15.0，MIT License，版权归 Acorn contributors。
+
 ## 安全说明
 
 - 安装器会请求管理员权限，因为它需要替换 `C:\Program Files\Antigravity\resources\app.asar`。
 - 更新检查由插件 `SessionStart` 钩子完成：只比对 `app.asar` 的 SHA-256，不注册计划任务、不常驻后台。修复运行时内置在插件 `runtime/` 中。
 - 安装前会把官方 `app.asar` 备份到 `C:\ProgramData\AntigravityZh\backups`。
+
 

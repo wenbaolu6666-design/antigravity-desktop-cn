@@ -93,6 +93,45 @@ if (Test-Path -LiteralPath $bak) {
     }
 }
 
+function Update-WebBundle {
+    $lsExe = Join-Path $InstallDir 'resources\bin\language_server.exe'
+    if (-not (Test-Path -LiteralPath $lsExe)) { return }
+    $webDir = Join-Path $StateDir 'web'
+    $marker = Join-Path $webDir '.web-bundle-ok'
+    $help = (& $lsExe --help 2>&1 | Out-String)
+    if ($help -notmatch 'web_bundle_path') {
+        if (Test-Path -LiteralPath $marker) { Remove-Item -LiteralPath $marker -Force }
+        Write-Host '当前 language_server 不支持外部 web bundle，保留内嵌 UI。' -ForegroundColor Yellow
+        return
+    }
+    $bundleTool = Join-Path $RuntimeDir 'tools\web-bundle.js'
+    $applyTool = Join-Path $RuntimeDir 'tools\apply-source-i18n.js'
+    $dict = Join-Path $RuntimeDir 'web\source-dict.json'
+    if (-not (Test-Path -LiteralPath $bundleTool) -or -not (Test-Path -LiteralPath $applyTool) -or -not (Test-Path -LiteralPath $dict)) {
+        Write-Host '缺少外部 bundle 工具，跳过源码级汉化。' -ForegroundColor Yellow
+        return
+    }
+    $temp = Join-Path $StateDir 'web.new'
+    $old = Join-Path $StateDir 'web.old'
+    if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Recurse -Force }
+    if (Test-Path -LiteralPath $old) { Remove-Item -LiteralPath $old -Recurse -Force }
+    try {
+        & $Node $bundleTool extract $lsExe $temp
+        if ($LASTEXITCODE -ne 0) { throw "解包失败：$LASTEXITCODE" }
+        & $Node $applyTool (Join-Path $temp 'main.js') $dict
+        if ($LASTEXITCODE -ne 0) { throw "源码汉化失败：$LASTEXITCODE" }
+        if (-not (Test-Path -LiteralPath (Join-Path $temp 'index.html'))) { throw '缺少 index.html' }
+        if (Test-Path -LiteralPath $webDir) { Move-Item -LiteralPath $webDir -Destination $old }
+        Move-Item -LiteralPath $temp -Destination $webDir
+        if (Test-Path -LiteralPath $old) { Remove-Item -LiteralPath $old -Recurse -Force }
+        Set-Content -LiteralPath (Join-Path $webDir '.web-bundle-ok') -Value 'ok' -Encoding utf8
+        Write-Host '外部 web bundle 已生成并完成源码级汉化。' -ForegroundColor Green
+    } catch {
+        if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue }
+        if (Test-Path -LiteralPath $marker) { Remove-Item -LiteralPath $marker -Force -ErrorAction SilentlyContinue }
+        Write-Host ("外部 bundle 生成失败，已回退内嵌 UI：" + $_.Exception.Message) -ForegroundColor Yellow
+    }
+}
 if ($DryRun) { Write-Host 'DryRun：跳过关闭与写入。' -ForegroundColor Yellow; exit 0 }
 
 if (-not $IgnoreRunning) {
@@ -103,6 +142,7 @@ if (-not $IgnoreRunning) {
     Get-Process Antigravity -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 2
 }
+Update-WebBundle
 
 $log = Join-Path $StateDir 'repair.log'
 & $Node $Engine --install-dir $InstallDir --no-kill --brand-title english *>> $log

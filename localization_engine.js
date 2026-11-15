@@ -8378,6 +8378,35 @@ ${translationJs}
         console.log(`[修改] 主进程 WSL 提示注入成功！`);
     }
 
+    // 7.5 dist/lsDefaults.js —— 优先加载外部 web bundle
+    const lsDefaultsBuf = AsarArchive.readFile(sourceAsar, "dist/lsDefaults.js");
+    if (lsDefaultsBuf) {
+        let lsContent = lsDefaultsBuf.toString('utf-8');
+        const baseAnchor = 'function baseLsArgs(opts) {\n    return [';
+        const tailAnchor = '        exports.LS_CLOUD_CODE_ENDPOINT,\n    ];';
+        if (lsContent.includes(baseAnchor) && lsContent.includes(tailAnchor)) {
+            const inject = "function baseLsArgs(opts) {\n" +
+                "    let __zhWebBundle = '';\n" +
+                "    try {\n" +
+                "        const __fs = require('fs');\n" +
+                "        const __path = require('path');\n" +
+                "        const __base = process.env.LOCALAPPDATA || '';\n" +
+                "        const __candidate = __base ? __path.join(__base, 'AntigravityZh', 'web') : '';\n" +
+                "        const __marker = __path.join(__candidate, '.web-bundle-ok');\n" +
+                "        if (__candidate && __fs.existsSync(__path.join(__candidate, 'index.html')) && __fs.existsSync(__marker)) {\n" +
+                "            __zhWebBundle = __candidate;\n" +
+                "        }\n" +
+                "    } catch (e) {}\n" +
+                "    return [";
+            lsContent = lsContent.replace(baseAnchor, inject);
+            lsContent = lsContent.replace(tailAnchor, "        exports.LS_CLOUD_CODE_ENDPOINT,\n        ...(__zhWebBundle ? ['--web_bundle_path', __zhWebBundle] : []),\n    ];");
+            filePatches["dist/lsDefaults.js"] = lsContent;
+            console.log("[修改] 外部 web bundle 参数注入成功！");
+        } else {
+            console.warn("[警告] 未找到 lsDefaults.js 注入点。");
+        }
+    }
+
     // 8. dist/utils.js
     const utilsBuf = AsarArchive.readFile(sourceAsar, "dist/utils.js");
     if (utilsBuf) {

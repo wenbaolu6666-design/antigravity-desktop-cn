@@ -14,6 +14,7 @@ New-Item -ItemType Directory -Force -Path $runtime | Out-Null
 Copy-Item -LiteralPath (Join-Path $RepoRoot 'localization_engine.js') -Destination $runtime -Force
 Copy-Item -LiteralPath (Join-Path $RepoRoot 'dicts') -Destination $runtime -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $RepoRoot 'tools') -Destination $runtime -Recurse -Force
+Copy-Item -LiteralPath (Join-Path $RepoRoot 'web') -Destination $runtime -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $RepoRoot 'installer\repair.ps1') -Destination $runtime -Force
 Copy-Item -LiteralPath (Join-Path $RepoRoot 'installer\auto-repair.ps1') -Destination $runtime -Force
 
@@ -22,4 +23,5 @@ New-Item -ItemType Directory -Force -Path $stateDir | Out-Null
 Set-Content -LiteralPath (Join-Path $stateDir 'repo-path.txt') -Value $RepoRoot -Encoding utf8
 Write-Host "插件已安装：$target" -ForegroundColor Green
 Write-Host '运行时已内置到插件 runtime/；更新检查由 SessionStart 钩子完成。'
+
 

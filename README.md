@@ -20,6 +20,22 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\installer\install.ps1
 5. 安装插件外壳，并把修复运行时内置到插件的 `runtime/`；不注册计划任务、不常驻后台；
 6. 在插件 `SessionStart` 时用补丁哈希检查更新。
 
+## 源码级汉化（外部 web bundle）
+
+Antigravity 的 UI 实际由 `language_server.exe` 内嵌的 ZIP 提供，其中包含完整的 `main.js`。本项目利用 `language_server.exe -web_bundle_path` 参数，把完整前端解包到：
+
+```text
+%LOCALAPPDATA%\AntigravityZh\web
+```
+
+安装/修复时会：
+
+1. 从当前 `language_server.exe` 定位并解包内嵌 ZIP；
+2. 用 AST 只替换 React 文本与 UI 属性（保留 `${变量}`、路径、命令和代码）；
+3. 生成源码级中文 `main.js`，并写入 `.web-bundle-ok` 标记；
+4. 在 `app.asar` 的 `lsDefaults.js` 中注入 `--web_bundle_path`，让客户端优先加载外部 bundle。
+
+客户端更新后，修复助手会从**新版本的** `language_server.exe` 重新解包、重新翻译、重新生成 bundle，因此更新不会把汉化永久覆盖。少量服务端动态文案仍由运行时翻译兜底。
 ## 关于管理员控制台窗口
 
 安装器需要管理员权限写入 `app.asar`，但**重启客户端时会通过 `explorer.exe` 以当前登录用户身份启动**，不会让 Antigravity 继承管理员令牌，也不会留下显示启动日志的 Administrator 控制台窗口。
@@ -354,6 +370,7 @@ AI 会自动激活内置技能并调用原生 Node.js 工具，同时以官方�
    - **独立分包覆盖**：分别维护 `dicts/marketplace_plugins.json` 与 `dicts/page_mcp_knowledge.json`，全量覆盖 Google 官方专区、合作伙伴专区插件及官方 MCP 服务器商店。
    - **双源联动与内存零落盘比对架构**：默认直连官方云端权威接口实时拉取最新插件清单并在内存中流式提取技能元数据，同时支持与运行态 Antigravity 客户端联动审计官方 MCP 商店条目。
    - **技能选择器安全有界绑定**：在斜杠命令与技能选择器中提供中文友好展示，防止底层路径或技术标识符被意外汉化污染。
+
 
 
 
