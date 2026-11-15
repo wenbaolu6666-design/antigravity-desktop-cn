@@ -146,6 +146,7 @@ function generateJs() {
     const BLOCKED_TEST_IDS = new Set(['user-input-step']);
     const SKIP_TRANSLATION_ATTR = 'data-ag-localization-skip';
     const THOUGHT_BODY_ATTR = 'data-ag-thought-body';
+    const AGENT_BODY_ATTR = 'data-ag-agent-body';
 
     function norm(s) {
         if (!s) return '';
@@ -783,13 +784,22 @@ function generateJs() {
     function isThoughtHeaderText(text) {
         const value = norm(text || '');
         if (!value || value.length > 80) return false;
-        return /^(?:Thought|Thinking|Reasoning|Reasoned|Deep thought|思考|正在思考|思考中|思维)/i.test(value);
+        return /^(?:Thought|Thinking|Reasoning|Reasoned|Deep thought|思考|已思考|正在思考|思考中|思维|推理|推理中|推理了)/i.test(value);
     }
 
     function markThoughtBody(element) {
         if (!element || element.nodeType !== Node.ELEMENT_NODE) return;
         if (!element.hasAttribute(THOUGHT_BODY_ATTR)) {
             element.setAttribute(THOUGHT_BODY_ATTR, 'true');
+        }
+        blockedCacheVersion++;
+        scheduleThoughtTranslation();
+    }
+
+    function markAgentBody(element) {
+        if (!element || element.nodeType !== Node.ELEMENT_NODE) return;
+        if (!element.hasAttribute(AGENT_BODY_ATTR)) {
+            element.setAttribute(AGENT_BODY_ATTR, 'true');
         }
         blockedCacheVersion++;
         scheduleThoughtTranslation();
@@ -810,7 +820,7 @@ function generateJs() {
                     for (const child of curr.children) {
                         if (child.tagName === 'SUMMARY') continue;
                         if (detailsThought) markThoughtBody(child);
-                        else child.setAttribute(SKIP_TRANSLATION_ATTR, 'true');
+                        else markAgentBody(child);
                     }
                     blockedCacheVersion++;
                     return;
@@ -834,7 +844,7 @@ function generateJs() {
                     if (nextTag === 'DIV' || nextTag === 'SECTION') {
                         curr.setAttribute('data-ag-thought-header', 'true');
                         if (thoughtHeader) markThoughtBody(next);
-                        else next.setAttribute(SKIP_TRANSLATION_ATTR, 'true');
+                        else markAgentBody(next);
                         blockedCacheVersion++;
                         return;
                     }
@@ -976,6 +986,10 @@ function generateJs() {
             return 2;
         }
         if (el.hasAttribute(THOUGHT_BODY_ATTR)) {
+            blockedZoneCache.set(el, -1);
+            return 2;
+        }
+        if (el.hasAttribute(AGENT_BODY_ATTR)) {
             blockedZoneCache.set(el, -1);
             return 2;
         }
@@ -2032,7 +2046,7 @@ function generateJs() {
         if (!str || typeof str !== 'string') return false;
         const trimmed = str.trim();
         if (trimmed.length > 160) return false;
-        if (!/^(?:Thought|Thinking|Explored|Exploring|Ran|Running|Edited|Editing|思考|思考了|正在思考|思考中|思维)/i.test(trimmed)) return false;
+        if (!/^(?:Thought|Thinking|Reasoning|Reasoned|Explored|Exploring|Ran|Running|Edited|Editing|思考|思考了|已思考|正在思考|思考中|思维|推理|推理中|推理了|工作|工作了|正在工作|已工作)/i.test(trimmed)) return false;
 
         if (/^(?:Thought for|Thinking for)\\s+[\\d\\w\\s,.<]+?(?:\\s*[>v›❯〉→∨˅⌄▼▽⋁↓])?\\s*$/i.test(trimmed)) {
             return true;
@@ -2040,7 +2054,10 @@ function generateJs() {
         if (/^Thinking(?:(?:\\s*\\.)|(?:\\s*…))*\\s*$/i.test(trimmed)) {
             return true;
         }
-        if (/^(?:思考|思考了|正在思考|思考中|思维|思维过程)(?:\\s*[\\d.,]+\\s*(?:秒|分钟|毫秒|小时)?)?\\s*[>v›❯〉→∨˅⌄▼▽⋁↓]?\\s*$/i.test(trimmed)) {
+        if (/^(?:Thought|Reasoning|Reasoned)(?:(?:\\s*\\.)|(?:\\s*…))*\\s*$/i.test(trimmed)) {
+            return true;
+        }
+        if (/^(?:思考|思考了|已思考|正在思考|思考中|思维|思维过程|推理|推理中|推理了|工作|工作了|正在工作|已工作)(?:\\s*[\\d.,]+\\s*(?:秒|分钟|毫秒|小时)?)?(?:(?:\\s*\\.)|(?:\\s*…))*\\s*[>v›❯〉→∨˅⌄▼▽⋁↓]?\\s*$/i.test(trimmed)) {
             return true;
         }
 
@@ -7259,6 +7276,9 @@ function getDynamicProductUiTranslation(value, node = null) {
             if (curr.hasAttribute?.(THOUGHT_BODY_ATTR)) {
                 sawThoughtSkip = true;
             }
+            if (curr.hasAttribute?.(AGENT_BODY_ATTR)) {
+                sawThoughtSkip = true;
+            }
             const prev = curr.previousElementSibling;
             if (prev && prev.hasAttribute?.('data-ag-thought-header') && curr.parentElement && curr.parentElement.children.length === 2) {
                 sawThoughtSkip = true;
@@ -7303,10 +7323,11 @@ function getDynamicProductUiTranslation(value, node = null) {
 
     const THOUGHT_MT_MAX_CHARS = 4200;
     const THOUGHT_MT_SEGMENT = '@@AGSEG@@';
-    const THOUGHT_MT_STABLE_MS = 900;
     const thoughtMtCache = new Map();
     const thoughtMtPending = new Map();
     const thoughtMtSeen = new WeakMap();
+    const thoughtStreamState = new WeakMap();
+    const thoughtDeltaCache = new Map();
     const thoughtMtQueue = [];
     let thoughtMtRunning = false;
     let thoughtMtScanTimer = 0;
@@ -7437,13 +7458,55 @@ function getDynamicProductUiTranslation(value, node = null) {
         }
     }
 
-    function applyThoughtTranslation(node, raw, sourceText, translated) {
-        if (!node || !node.isConnected) return false;
-        if ((node.nodeValue || '').trim() !== sourceText) return false;
+    function splitRawContent(raw) {
         const leading = (raw.match(/^\\s*/) || [''])[0];
         const trailing = (raw.match(/\\s*$/) || [''])[0];
-        const value = leading + String(translated || '').trim() + trailing;
-        if (!value.trim() || value === raw) return false;
+        return {
+            leading: leading,
+            trailing: trailing,
+            content: raw.slice(leading.length, raw.length - trailing.length)
+        };
+    }
+
+    function getStableStreamPrefix(content) {
+        let last = -1;
+        for (let i = 0; i < content.length; i++) {
+            if (!/[.!?。！？]/.test(content[i])) continue;
+            let j = i + 1;
+            while (j < content.length && /["')\\]]/.test(content[j])) j++;
+            if (j >= content.length || /\\s/.test(content[j])) last = j;
+        }
+        if (last < 0) {
+            const newline = content.lastIndexOf('\\n');
+            if (newline >= 0) last = newline + 1;
+        }
+        return last > 0 ? content.slice(0, last) : '';
+    }
+
+    function hasStreamBlockedAncestor(node, root) {
+        let current = node.parentElement;
+        while (current) {
+            if (current !== root) {
+                const tag = current.tagName ? current.tagName.toUpperCase() : '';
+                if (tag === 'BUTTON' || tag === 'A' || tag === 'SUMMARY') return true;
+                if (current.getAttribute && current.getAttribute('role') === 'button') return true;
+                if (current.hasAttribute && current.hasAttribute(SKIP_TRANSLATION_ATTR)) return true;
+                const cls = typeof current.className === 'string' ? current.className : '';
+                if (cls && HARD_PRUNED_CLASS_REGEX.test(cls)) return true;
+                if (cls && /(?:^|\\s)(?:font-mono|whitespace-pre|whitespace-pre-wrap)(?:\\s|$)/.test(cls)) return true;
+            }
+            if (current === root) break;
+            current = current.parentElement;
+        }
+        return false;
+    }
+
+    function applyStreamState(node, raw, state) {
+        if (!node || !state || !state.translatedPrefix) return false;
+        const info = splitRawContent(raw);
+        if (!info.content.startsWith(state.sourcePrefix)) return false;
+        const value = info.leading + state.translatedPrefix + info.content.slice(state.sourcePrefix.length) + info.trailing;
+        if ((node.nodeValue || '') === value) return false;
         translatedValues.set(node, value);
         node.nodeValue = value;
         return true;
@@ -7455,29 +7518,60 @@ function getDynamicProductUiTranslation(value, node = null) {
             if (!node) return;
             if (node.nodeType === Node.TEXT_NODE) {
                 const raw = node.nodeValue || '';
-                const text = raw.trim();
+                const info = splitRawContent(raw);
+                const content = info.content;
+                if (!content) return;
+                if (hasStreamBlockedAncestor(node, root)) return;
                 const prevSibling = node.previousSibling;
                 const nextSibling = node.nextSibling;
                 const adjacentInline = !!(
                     (prevSibling && prevSibling.nodeType === Node.ELEMENT_NODE && /^(CODE|KBD|SAMP)$/.test(prevSibling.tagName || '')) ||
                     (nextSibling && nextSibling.nodeType === Node.ELEMENT_NODE && /^(CODE|KBD|SAMP)$/.test(nextSibling.tagName || ''))
                 );
-                if (!isTranslatableThoughtText(text, adjacentInline)) return;
-                const seen = thoughtMtSeen.get(node);
-                if (!seen || seen.text !== text) {
-                    thoughtMtSeen.set(node, { text: text, since: Date.now() });
+                let state = thoughtStreamState.get(node);
+                if (state && /[\\u4e00-\\u9fff]/.test(content.slice(0, 48))) return;
+                let prefix = getStableStreamPrefix(content);
+                if (!prefix) {
+                    const seen = thoughtMtSeen.get(node);
+                    if (!seen || seen.text !== content) {
+                        thoughtMtSeen.set(node, { text: content, since: Date.now() });
+                        return;
+                    }
+                    if (Date.now() - seen.since < 1200 || content.length < 20) return;
+                    if (!isTranslatableThoughtText(content, adjacentInline)) return;
+                    prefix = content;
+                }
+                if (!isTranslatableThoughtText(prefix, adjacentInline)) {
+                    if (state) applyStreamState(node, raw, state);
                     return;
                 }
-                if (Date.now() - seen.since < THOUGHT_MT_STABLE_MS) return;
-                if (thoughtMtCache.has(text)) {
-                    applyThoughtTranslation(node, raw, text, thoughtMtCache.get(text));
+                if (state && !prefix.startsWith(state.sourcePrefix)) state = null;
+                if (!state) {
+                    state = { sourcePrefix: '', translatedPrefix: '' };
+                    thoughtStreamState.set(node, state);
+                }
+                const delta = prefix.slice(state.sourcePrefix.length);
+                if (!delta.trim()) {
+                    applyStreamState(node, raw, state);
+                    return;
+                }
+                if (!isTranslatableThoughtText(delta, adjacentInline)) {
+                    applyStreamState(node, raw, state);
+                    return;
+                }
+                const deltaKey = delta.trim();
+                if (thoughtDeltaCache.has(deltaKey)) {
+                    state.translatedPrefix += thoughtDeltaCache.get(deltaKey);
+                    state.sourcePrefix = prefix;
+                    applyStreamState(node, raw, state);
                     return;
                 }
                 segments.push({
                     node: node,
-                    text: text,
-                    leading: (raw.match(/^\\s*/) || [''])[0],
-                    trailing: (raw.match(/\\s*$/) || [''])[0]
+                    raw: raw,
+                    prefix: prefix,
+                    delta: delta,
+                    state: state
                 });
                 return;
             }
@@ -7494,18 +7588,31 @@ function getDynamicProductUiTranslation(value, node = null) {
         return segments;
     }
 
+    function applyTranslatedDelta(segment, translation) {
+        const delta = segment.delta;
+        const leading = (delta.match(/^\\s*/) || [''])[0];
+        const trailing = (delta.match(/\\s*$/) || [''])[0];
+        const formatted = leading + String(translation || '').trim() + trailing;
+        if (!formatted.trim()) return;
+        if (thoughtDeltaCache.size > 1200) thoughtDeltaCache.clear();
+        thoughtDeltaCache.set(delta.trim(), formatted);
+        segment.state.translatedPrefix += formatted;
+        segment.state.sourcePrefix = segment.prefix;
+        applyStreamState(segment.node, segment.raw, segment.state);
+    }
+
     async function translateThoughtSegments(segments) {
         let start = 0;
         while (start < segments.length) {
             const batch = [];
             let total = 0;
             for (let i = start; i < segments.length; i++) {
-                const length = segments[i].text.length + 24;
+                const length = segments[i].delta.length + 24;
                 if (batch.length && total + length > THOUGHT_MT_MAX_CHARS) break;
                 batch.push(segments[i]);
                 total += length;
             }
-            const joined = batch.map(function (segment) { return segment.text; }).join('\\n\\n' + THOUGHT_MT_SEGMENT + '\\n\\n');
+            const joined = batch.map(function (segment) { return segment.delta.trim(); }).join('\\n\\n' + THOUGHT_MT_SEGMENT + '\\n\\n');
             let translated = '';
             try {
                 translated = await translateThoughtValue(joined);
@@ -7524,13 +7631,13 @@ function getDynamicProductUiTranslation(value, node = null) {
             if (parts.length !== batch.length) {
                 for (const segment of batch) {
                     try {
-                        const one = await translateThoughtValue(segment.text);
-                        applyThoughtTranslation(segment.node, segment.node.nodeValue || '', segment.text, one);
+                        const one = await translateThoughtValue(segment.delta.trim());
+                        applyTranslatedDelta(segment, one);
                     } catch (error) {}
                 }
             } else {
                 for (let i = 0; i < batch.length; i++) {
-                    applyThoughtTranslation(batch[i].node, batch[i].node.nodeValue || '', batch[i].text, parts[i]);
+                    applyTranslatedDelta(batch[i], parts[i]);
                 }
             }
             start += batch.length;
@@ -7558,7 +7665,7 @@ function getDynamicProductUiTranslation(value, node = null) {
     function scanThoughtBodies() {
         if (!thoughtMtBooted || !isThoughtMtEnabled()) return;
         if (Date.now() < thoughtMtDisabledUntil) return;
-        const bodies = document.querySelectorAll('[' + THOUGHT_BODY_ATTR + '="true"]');
+        const bodies = document.querySelectorAll('[' + THOUGHT_BODY_ATTR + '="true"], [' + AGENT_BODY_ATTR + '="true"]');
         for (const body of bodies) {
             if (!body.getClientRects().length) continue;
             if (thoughtMtQueue.indexOf(body) >= 0) continue;
@@ -7573,7 +7680,7 @@ function getDynamicProductUiTranslation(value, node = null) {
         thoughtMtScanTimer = setTimeout(function () {
             thoughtMtScanTimer = 0;
             scanThoughtBodies();
-        }, 600);
+        }, 250);
     }
 
     function startThoughtTranslation() {
@@ -7614,11 +7721,7 @@ function getDynamicProductUiTranslation(value, node = null) {
                         markThoughtBody(node);
                         return;
                     }
-                    node.setAttribute(SKIP_TRANSLATION_ATTR, 'true');
-                    blockedZoneCache.set(node, -1);
-                    if (isPureThoughtSkipContext(node)) {
-                        translateModelRetryInsideThought(node);
-                    }
+                    markAgentBody(node);
                     return;
                 }
 
@@ -8359,7 +8462,7 @@ function getDynamicProductUiTranslation(value, node = null) {
 
         engineStarted = true;
         startThoughtTranslation();
-        setInterval(function () { scanThoughtBodies(); }, 1500);
+        setInterval(function () { scanThoughtBodies(); }, 700);
         try {
             translateNode(target);
             observer.observe(target, obsOpts);
