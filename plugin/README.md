@@ -30,10 +30,12 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\installer\install-plugin.ps1
 
 智能体会调用 `installer\install.ps1` / `status.ps1` / `uninstall.ps1`。
 
-## 自动喊话
+## 更新检查与自动喊话
 
-`hooks.json` 注册了 `SessionStart` 钩子：
+`hooks.json` 注册了 `SessionStart` 钩子，每次新会话只做一次 SHA-256 比对，**不轮询、不常驻、不注册计划任务**：
 
-- 更新守护完成自动重装后，会写入 `last-event.json`。
-- 新会话启动时，钩子注入一条【汉化守护】系统消息，智能体会用一句中文告知用户。
-- 同时守护任务会尝试弹出 Windows 通知。
+- 哈希一致：返回 `{}`，不产生提示。
+- 哈希不一致：注入【汉化守护】消息，提示用户说“修复汉化”。
+- 修复完成：写入 `last-event.json`，下一次会话自动喊话确认。
+- 修复运行时已内置在 `runtime/`，不依赖 ProgramData 或外部守护进程。
+

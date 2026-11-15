@@ -28,8 +28,13 @@ assert.strictEqual(greeting(greetingNode, 'Welcome back. Where should we pick up
 
 assert.strictEqual(notice({}, 'Gemini 4 Hydrogen is currently available to paid Pro and Ultra subscribers.'), 'Gemini 4 Hydrogen 目前仅向付费 Pro 与 Ultra 订阅用户提供。');
 assert.strictEqual(notice({}, 'Gemini 4 Argon is now available to paid Pro and Ultra subscribers.'), 'Gemini 4 Argon 现已向付费 Pro 与 Ultra 订阅用户提供。');
-assert.strictEqual(notice({}, 'Gemini 4 Carbon is available only to paid Pro and Ultra subscribers.'), 'Gemini 4 Carbon 向付费 Pro 与 Ultra 订阅用户提供。');
+assert.strictEqual(notice({}, 'Gemini 4 Carbon is available only to paid Pro and Ultra subscribers.'), 'Gemini 4 Carbon 仅向付费 Pro 与 Ultra 订阅用户提供。');
 assert.strictEqual(notice({}, 'Claude Opus 4.6 is currently unavailable on your current plan.'), 'Claude Opus 4.6 在您当前计划中不可用。');
-assert.strictEqual(notice({}, 'Opus 5.5 is now available on paid Pro and Ultra plans. Third-party model access will no longer be available on your current plan starting on November 18, 2026.'), 'Opus 5.5 现已向付费 Pro 与 Ultra 计划开放。自 2026 年 11 月 18 日起，您当前计划将不再提供第三方模型。');
+assert.strictEqual(notice({}, 'Gemini 4 Argon is currently available to Ultra and paid Pro plan subscribers.'), 'Gemini 4 Argon 目前仅向付费 Pro 与 Ultra 订阅用户提供。');
+assert.strictEqual(notice({}, 'GPT-OSS will be removed from Antigravity on November 18, 2026.'), 'GPT-OSS 将于 2026 年 11 月 18 日从 Antigravity 中移除。');
+assert.strictEqual(notice({}, 'Gemini 4 Carbon is available to paid Pro and Ultra subscribers only.'), 'Gemini 4 Carbon 仅向付费 Pro 与 Ultra 订阅用户提供。');
+assert.strictEqual(notice({}, 'Gemini 4 Hydrogen is currently unavailable.'), 'Gemini 4 Hydrogen 目前不可用。');assert.strictEqual(notice({}, 'Opus 5.5 is now available on paid Pro and Ultra plans. Third-party model access will no longer be available on your current plan starting on November 18, 2026.'), 'Opus 5.5 现已向付费 Pro 与 Ultra 计划开放。自 2026 年 11 月 18 日起，您当前计划将不再提供第三方模型。');
 
 console.log('本地化规则测试全部通过');
+
+

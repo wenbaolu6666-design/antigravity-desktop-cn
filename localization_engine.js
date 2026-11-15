@@ -1253,7 +1253,7 @@ function generateJs() {
     function getModelNoticeTranslation(node, value) {
         if (!node || typeof value !== 'string') return null;
         const text = norm(value);
-        if (!text || text.length > 320) return null;
+        if (!text || text.length > 360) return null;
         const months = { january: '1', february: '2', march: '3', april: '4', may: '5', june: '6', july: '7', august: '8', september: '9', october: '10', november: '11', december: '12' };
         const dateText = (raw) => {
             const m = raw.trim().match(/^([A-Za-z]+)\\s+(\\d{1,2}),\\s*(\\d{4})$/);
@@ -1261,31 +1261,70 @@ function generateJs() {
             const month = months[m[1].toLowerCase()];
             return month ? m[3] + ' 年 ' + month + ' 月 ' + m[2] + ' 日' : raw.trim();
         };
+        const findDate = (raw) => {
+            const m = raw.match(/([A-Za-z]+)\\s+(\\d{1,2}),\\s*(\\d{4})/);
+            return m ? dateText(m[0]) : '';
+        };
 
         let match = text.match(/^(.+?) is now available on paid Pro and Ultra plans\\.\\s*Third-party model access will no longer be available on your current plan starting on (.+?)\\.$/i);
         if (match) return match[1] + ' 现已向付费 Pro 与 Ultra 计划开放。自 ' + dateText(match[2]) + '起，您当前计划将不再提供第三方模型。';
-        match = text.match(/^Third-party model access will no longer be available on your current plan starting on (.+?)\\.$/i);
-        if (match) return '自 ' + dateText(match[1]) + '起，您当前计划将不再提供第三方模型。';
-
-        match = text.match(/^(.+?) is (now |currently )?(?:only |exclusively )?available (?:only |exclusively )?(?:to|for|on) (?:paid )?Pro and Ultra (subscribers|subscriber|plans|plan|members|users)(?: only)?\\.$/i);
-        if (match) {
-            const model = match[1].trim();
-            const mode = (match[2] || '').trim().toLowerCase();
-            const kind = match[3].toLowerCase();
-            const target = (kind === 'subscribers' || kind === 'subscriber' || kind === 'members' || kind === 'users') ? '订阅用户' : '计划';
-            const verb = target === '计划' ? '开放' : '提供';
-            if (mode === 'now') return model + ' 现已向付费 Pro 与 Ultra ' + target + verb + '。';
-            if (mode === 'currently') return model + ' 目前仅向付费 Pro 与 Ultra ' + target + verb + '。';
-            return model + ' 向付费 Pro 与 Ultra ' + target + verb + '。';
+        if (/^Third-party model access/i.test(text)) {
+            const date = findDate(text);
+            return (date ? '自 ' + date + '起' : '即将') + '，您当前计划将不再提供第三方模型。';
         }
 
-        match = text.match(/^(.+?) is (?:currently )?unavailable (?:on|for) your current plan\\.$/i);
-        if (match) return match[1] + ' 在您当前计划中不可用。';
-        match = text.match(/^(.+?) requires? a paid Pro or Ultra plan\\.$/i);
-        if (match) return match[1] + ' 需要付费 Pro 或 Ultra 计划。';
+        const body = text.replace(/^Access to\\s+/i, '').trim();
+        const modelMatch = body.match(/^(.+?)\\s+(?:is|are|will|has|have|requires?)\\b/i);
+        if (!modelMatch) return null;
+        const model = modelMatch[1].trim();
+        if (!model || !/available|unavailable|removed|deprecated|retired|discontinued|no longer|requires?|included|subscribers?|plans?/i.test(text)) return null;
+
+        if (/\\b(removed|deprecated|retired|discontinued|will end|no longer be available)\\b/i.test(text)) {
+            const date = findDate(text);
+            if (/\\bhas been\\b|\\bhave been\\b/i.test(text)) return model + ' 已从 Antigravity 中移除。';
+            if (/no longer be available|will end/i.test(text)) return model + (date ? ' 将于 ' + date + '起' : ' 即将') + '停止提供。';
+            const action = /deprecated/i.test(text) ? '停止提供' : '移除';
+            return model + (date ? ' 将于 ' + date : ' 即将') + '从 Antigravity 中' + action + '。';
+        }
+
+        if (/\\bunavailable\\b|\\bnot available\\b|\\bno longer available\\b/i.test(text)) {
+            return model + (/your current plan/i.test(text) ? ' 在您当前计划中不可用。' : ' 目前不可用。');
+        }
+
+        if (/\\brequires?\\b/i.test(text) && /\\bplans?\\b/i.test(text)) return model + ' 需要付费 Pro 或 Ultra 计划。';
+        if (/\\bincluded\\b/i.test(text) && /\\bplans?\\b/i.test(text)) return model + ' 已包含在付费 Pro 与 Ultra 计划中。';
+
+        if (/\\bavailable\\b/i.test(text)) {
+            const paid = /\\bpaid\\b/i.test(text);
+            const tier = paid ? '付费 Pro 与 Ultra' : 'Pro 与 Ultra';
+            const isPlan = /\\bplans?\\b/i.test(text) && !/\\bsubscribers?/i.test(text);
+            const target = isPlan ? '计划' : '订阅用户';
+            const verb = isPlan ? '开放' : '提供';
+            if (/\\bcurrently\\b/i.test(text)) return model + ' 目前仅向' + tier + ' ' + target + verb + '。';
+            if (/\\bnow\\b/i.test(text)) return model + ' 现已向' + tier + ' ' + target + verb + '。';
+            if (/\\b(only|exclusively)\\b/i.test(text)) return model + ' 仅向' + tier + ' ' + target + verb + '。';
+            return model + ' 向' + tier + ' ' + target + verb + '。';
+        }
+
+        // 兜底：只翻译能确定的产品短语，保留模型名和未知部分
+        if (/Antigravity|\\bPro\\b|\\bUltra\\b|subscribers?|plans?/i.test(text)) {
+            let fallback = text
+                .replace(/\\bis currently available to\\b/gi, '目前向')
+                .replace(/\\bis now available to\\b/gi, '现已向')
+                .replace(/\\bis available to\\b/gi, '向')
+                .replace(/\\bis currently available on\\b/gi, '目前向')
+                .replace(/\\bis now available on\\b/gi, '现已向')
+                .replace(/\\bis available on\\b/gi, '向')
+                .replace(/\\bUltra and paid Pro plan\\b/gi, '付费 Pro 与 Ultra 计划')
+                .replace(/\\bpaid Pro and Ultra\\b/gi, '付费 Pro 与 Ultra')
+                .replace(/\\bsubscribers?\\b/gi, '订阅用户')
+                .replace(/\\bplans?\\b/gi, '计划');
+            if (fallback !== text) return fallback;
+        }
         return null;
     }
-    // 首页问候语：动态保留实际用户名，绝不写死姓名\n    function getHomeGreetingTranslation(node, value) {
+    // 首页问候语：动态保留实际用户名，绝不写死姓名
+    function getHomeGreetingTranslation(node, value) {
         if (!node || typeof value !== 'string') return null;
         const text = norm(value);
         if (!text || text.length > 140) return null;
@@ -8711,5 +8750,6 @@ function main() {
 }
 
 main();
+
 
 

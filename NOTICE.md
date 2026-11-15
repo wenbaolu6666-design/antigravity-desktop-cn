@@ -25,6 +25,7 @@
 
 ## 安全说明
 
-- 安装器会请求管理员权限，因为它需要替换 `C:\Program Files\Antigravity\resources\app.asar` 并注册计划任务。
-- 更新守护任务以当前用户身份运行，使用最高权限，每 10 分钟检查一次；脚本固定安装到 `C:\ProgramData\AntigravityZh`，避免执行用户可写目录中的代码。
+- 安装器会请求管理员权限，因为它需要替换 `C:\Program Files\Antigravity\resources\app.asar`。
+- 更新检查由插件 `SessionStart` 钩子完成：只比对 `app.asar` 的 SHA-256，不注册计划任务、不常驻后台。修复运行时内置在插件 `runtime/` 中。
 - 安装前会把官方 `app.asar` 备份到 `C:\ProgramData\AntigravityZh\backups`。
+

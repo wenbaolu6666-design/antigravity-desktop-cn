@@ -6,8 +6,8 @@ param(
     [switch]$NoRestart
 )
 $ErrorActionPreference = 'Stop'
-$ProgramDataDir = Join-Path $env:ProgramData 'AntigravityZh'
 $StateDir = Join-Path $env:LOCALAPPDATA 'AntigravityZh'
+$PluginDir = Join-Path $env:USERPROFILE '.gemini\config\plugins\antigravity-zh-cn'
 $asar = Join-Path $InstallDir 'resources\app.asar'
 $bak = Join-Path $InstallDir 'resources\app.asar.bak'
 
@@ -25,7 +25,6 @@ if (-not (Test-Admin)) {
 }
 
 Unregister-ScheduledTask -TaskName 'AntigravityZhWatcher' -Confirm:$false -ErrorAction SilentlyContinue
-
 Get-Process Antigravity -ErrorAction SilentlyContinue | ForEach-Object {
     if ($_.MainWindowHandle -ne 0) { $_.CloseMainWindow() | Out-Null }
 }
@@ -35,10 +34,16 @@ Start-Sleep -Seconds 2
 
 $Node = 'C:\Program Files\nodejs\node.exe'
 if (-not (Test-Path -LiteralPath $Node)) { $Node = (Get-Command node.exe -ErrorAction SilentlyContinue).Source }
-$version = if ($Node) { (& $Node (Join-Path $ProgramDataDir 'tools\read-version.js') $asar).Trim() } else { '' }
+$readVersion = Join-Path $PluginDir 'runtime\tools\read-version.js'
+if (-not (Test-Path -LiteralPath $readVersion)) { $readVersion = Join-Path $PSScriptRoot '..\tools\read-version.js' }
+$version = if ((Test-Path -LiteralPath $Node) -and (Test-Path -LiteralPath $readVersion)) { (& $Node $readVersion $asar).Trim() } else { '' }
 
 $restored = $false
-$backup = Get-ChildItem -LiteralPath (Join-Path $ProgramDataDir 'backups') -Filter "app-$version-*.asar" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+$backup = Get-ChildItem -LiteralPath (Join-Path $StateDir 'backups') -Filter "app-$version-*.asar" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+if (-not $backup) {
+    $legacyDir = Join-Path $env:ProgramData 'AntigravityZh\backups'
+    $backup = Get-ChildItem -LiteralPath $legacyDir -Filter "app-$version-*.asar" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+}
 if ($backup) {
     Copy-Item -LiteralPath $backup.FullName -Destination $asar -Force
     $restored = $true
@@ -48,22 +53,24 @@ if ($backup) {
     $restored = $true
     Write-Host '已从 app.asar.bak 还原。' -ForegroundColor Green
 }
-
 if (-not $restored) { Write-Host '未找到可用备份，app.asar 未改动。' -ForegroundColor Yellow }
 if (Test-Path -LiteralPath $bak) { Remove-Item -LiteralPath $bak -Force -ErrorAction SilentlyContinue }
 
-if ($RemovePlugin) {
-    $pluginDir = Join-Path $env:USERPROFILE '.gemini\config\plugins\antigravity-zh-cn'
-    if (Test-Path -LiteralPath $pluginDir) { Remove-Item -LiteralPath $pluginDir -Recurse -Force }
-    Write-Host '已移除 Antigravity 插件外壳。' -ForegroundColor Green
+if ($RemovePlugin -and (Test-Path -LiteralPath $PluginDir)) {
+    Remove-Item -LiteralPath $PluginDir -Recurse -Force
+    Write-Host '已移除 Antigravity 插件外壳与内置运行时。' -ForegroundColor Green
 }
 
 if ($Purge) {
-    $target = [System.IO.Path]::GetFullPath($ProgramDataDir)
-    $expected = [System.IO.Path]::GetFullPath((Join-Path $env:ProgramData 'AntigravityZh'))
-    if ($target -eq $expected -and (Test-Path -LiteralPath $target)) {
-        Remove-Item -LiteralPath $target -Recurse -Force
-        Write-Host '已清理 ProgramData 下的守护组件与备份。' -ForegroundColor Green
+    foreach ($dir in @($StateDir, (Join-Path $env:ProgramData 'AntigravityZh'))) {
+        if (Test-Path -LiteralPath $dir) {
+            $full = [System.IO.Path]::GetFullPath($dir)
+            $allowed = @(
+                [System.IO.Path]::GetFullPath($StateDir),
+                [System.IO.Path]::GetFullPath((Join-Path $env:ProgramData 'AntigravityZh'))
+            )
+            if ($allowed -contains $full) { Remove-Item -LiteralPath $full -Recurse -Force; Write-Host "已清理：$full" -ForegroundColor Green }
+        }
     }
 }
 
