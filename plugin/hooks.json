@@ -1,0 +1,11 @@
+{
+  "antigravity-zh-cn-session": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "pwsh.exe -NoProfile -ExecutionPolicy Bypass -File ./hooks/announce.ps1",
+        "timeout": 10
+      }
+    ]
+  }
+}

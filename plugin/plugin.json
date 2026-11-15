@@ -1,0 +1,15 @@
+{
+  "name": "antigravity-zh-cn",
+  "displayName": "反重力中文汉化",
+  "description": "为 Antigravity 桌面端安装、修复并守护简体中文界面；支持客户端更新后自动重装汉化。",
+  "author": {
+    "name": "温保禄",
+    "url": "https://github.com/wenbaolu6666-design"
+  },
+  "homepage": "https://github.com/wenbaolu6666-design/antigravity-desktop-cn",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wenbaolu6666-design/antigravity-desktop-cn"
+  },
+  "logo": "assets/logo.svg"
+}

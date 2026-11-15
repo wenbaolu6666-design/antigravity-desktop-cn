@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <rect width="128" height="128" rx="28" fill="#1f2937"/>
+  <path d="M28 92 64 26l36 66H84L64 56 44 92Z" fill="#f9fafb"/>
+  <text x="64" y="112" font-size="22" font-family="sans-serif" text-anchor="middle" fill="#f9fafb">中文</text>
+</svg>

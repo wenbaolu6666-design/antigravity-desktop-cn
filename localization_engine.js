@@ -1250,7 +1250,108 @@ function generateJs() {
         return null;
     }
 
+    function getModelNoticeTranslation(node, value) {
+        if (!node || typeof value !== 'string') return null;
+        const text = norm(value);
+        if (!text || text.length > 320) return null;
+        const months = { january: '1', february: '2', march: '3', april: '4', may: '5', june: '6', july: '7', august: '8', september: '9', october: '10', november: '11', december: '12' };
+        const dateText = (raw) => {
+            const m = raw.trim().match(/^([A-Za-z]+)\\s+(\\d{1,2}),\\s*(\\d{4})$/);
+            if (!m) return raw.trim();
+            const month = months[m[1].toLowerCase()];
+            return month ? m[3] + ' 年 ' + month + ' 月 ' + m[2] + ' 日' : raw.trim();
+        };
+        let match = text.match(/^(.+?) is now available on paid Pro and Ultra plans\\.\\s*Third-party model access will no longer be available on your current plan starting on (.+?)\\.$/i);
+        if (match) return match[1] + ' 现已向付费 Pro 与 Ultra 计划开放。自 ' + dateText(match[2]) + ' 起，您当前计划将不再提供第三方模型。';
+        match = text.match(/^Third-party model access will no longer be available on your current plan starting on (.+?)\\.$/i);
+        if (match) return '自 ' + dateText(match[1]) + ' 起，您当前计划将不再提供第三方模型。';
+        match = text.match(/^(.+?) is now available on paid Pro and Ultra plans\\.$/i);
+        if (match) return match[1] + ' 现已向付费 Pro 与 Ultra 计划开放。';
+        return null;
+    }
+
+    function getHomeGreetingTranslation(node, value) {
+        if (!node || typeof value !== 'string') return null;
+        const text = norm(value);
+        if (!text || text.length > 140) return null;
+        let current = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+        let inGreeting = false;
+        for (let depth = 0; current && depth < 5; depth++) {
+            const testId = current.getAttribute ? (current.getAttribute('data-testid') || '') : '';
+            const cls = typeof current.className === 'string' ? current.className : '';
+            if (testId === 'home-greeting' || cls.indexOf('home-greeting-title') >= 0) {
+                inGreeting = true;
+                break;
+            }
+            current = current.parentElement;
+        }
+        if (!inGreeting) return null;
+        if (/^Hey there,\\s*what should we build today\\?$/i.test(text)) return '你好，今天想构建点什么？';
+        if (/^Welcome back\\.\\s*Where should we pick up\\?$/i.test(text)) return '欢迎回来。想从哪里继续？';
+        if (/^Good to see you\\.\\s*What's next\\?$/i.test(text)) return '很高兴见到你。接下来做什么？';
+        let match = text.match(/^Hey\\s+(.+?),\\s*what should we build today\\?$/i);
+        if (match && match[1].length <= 40) return '你好，' + match[1] + '。今天想构建点什么？';
+        match = text.match(/^Welcome back,\\s*(.+?)\\.\\s*Where should we pick up\\?$/i);
+        if (match && match[1].length <= 40) return '欢迎回来，' + match[1] + '。想从哪里继续？';
+        match = text.match(/^Good to see you,\\s*(.+?)\\.\\s*What's next\\?$/i);
+        if (match && match[1].length <= 40) return '很高兴见到你，' + match[1] + '。接下来做什么？';
+        return null;
+    }
+
+    function getToolActivityStatusTranslation(node, value) {
+        if (!node || typeof value !== 'string') return null;
+        const text = norm(value).replace(/(?:\\s*[.…])+$/, '').trim();
+        if (!text || text.length > 48) return null;
+        const fixed = {
+            'Reading': '正在读取',
+            'Read': '已读取',
+            'Analyzed': '已分析',
+            'Analyzing': '正在分析',
+            'Listing': '正在列出',
+            'Listed': '已列出',
+            'Exploring': '正在浏览',
+            'Explored': '已浏览',
+            'Editing': '正在编辑',
+            'Edited': '已编辑',
+            'Running': '正在运行',
+            'Ran': '已运行',
+            'Working': '工作中'
+        };
+        let translated = fixed[text] || null;
+        if (!translated) {
+            const prefixed = text.match(/^(Reading|Analyzed|Analyzing|Listing|Explored|Exploring|Edited|Editing|Running|Ran)\\s+(.+)$/i);
+            if (prefixed && prefixed[2].length <= 36) {
+                const key = prefixed[1][0].toUpperCase() + prefixed[1].slice(1).toLowerCase();
+                if (fixed[key]) translated = fixed[key] + ' ' + prefixed[2];
+            }
+        }
+        if (!translated) return null;
+
+        let current = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+        let contextOk = false;
+        for (let depth = 0; current && depth < 7; depth++) {
+            if (current === document.body || current === document.documentElement) break;
+            const tag = current.tagName ? current.tagName.toUpperCase() : '';
+            const cls = typeof current.className === 'string' ? current.className : '';
+            const testId = current.getAttribute ? (current.getAttribute('data-testid') || '') : '';
+            if (tag === 'PRE' || tag === 'CODE' || tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'ARTICLE') return null;
+            if (/(?:prose|markdown|view-line|view-lines|xterm|terminal|code-block|code-line)/i.test(cls)) return null;
+            if (current.getAttribute && (current.getAttribute('contenteditable') === 'true' || current.getAttribute('translate') === 'no')) return null;
+            if (current.getAttribute && current.getAttribute('data-ag-localization-skip') === 'true') return null;
+            if (cls.indexOf('text-muted-foreground') >= 0) contextOk = true;
+            if (testId === 'agent-loading' || testId === 'transcript-work-line' || /(?:^|-)tool-step$/.test(testId) || testId === 'mcp-tool-step') contextOk = true;
+            current = current.parentElement || (current.getRootNode && current.getRootNode().host) || null;
+        }
+        return contextOk ? translated : null;
+    }
+
     function getProtectedProductUiTranslation(node, value) {
+        const toolActivityTrans = getToolActivityStatusTranslation(node, value);
+        if (toolActivityTrans) return toolActivityTrans;
+        const homeGreetingTrans = getHomeGreetingTranslation(node, value);
+        if (homeGreetingTrans) return homeGreetingTrans;
+        const modelNoticeTrans = getModelNoticeTranslation(node, value);
+        if (modelNoticeTrans) return modelNoticeTrans;
         const normalized = norm(value);
         const lower = normalized.toLowerCase();
 
@@ -6384,6 +6485,11 @@ function getDynamicProductUiTranslation(value, node = null) {
                 if (translatedValues.get(node) === originalVal) return;
 
                 const parentEl = node.parentElement;
+                const directToolActivityTrans = getToolActivityStatusTranslation(node, originalVal);
+                if (directToolActivityTrans) {
+                    replaceTextNode(node, directToolActivityTrans);
+                    return;
+                }
                 const parentBlockedState = getElementBlockedState(parentEl);
                 if (parentBlockedState === 2) {
                     if (originalVal.length <= 96 && /^\\s*Model\\s+unavailable,\\s*retrying\\b/i.test(originalVal) && isPureThoughtSkipContext(parentEl)) {
@@ -6517,6 +6623,10 @@ function getDynamicProductUiTranslation(value, node = null) {
                 } else if ((dynRes = getDeleteTaskConfirmationTranslation(node, valNorm))) {
                     newVal = dynRes;
                 } else if ((dynRes = translateWithShortcut(valNorm))) {
+                    newVal = dynRes;
+                } else if ((dynRes = getHomeGreetingTranslation(node, valNorm))) {
+                    newVal = dynRes;
+                } else if ((dynRes = getModelNoticeTranslation(node, valNorm))) {
                     newVal = dynRes;
                 } else if ((dynRes = getVersionControlUiTranslation(valNorm))) {
                     newVal = dynRes;

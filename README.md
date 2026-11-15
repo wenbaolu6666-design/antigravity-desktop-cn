@@ -1,3 +1,68 @@
+# Antigravity 简体中文汉化（更新守护版）
+
+> 本仓库 Fork 自 [Silas-02/antigravity-desktop-cn](https://github.com/Silas-02/antigravity-desktop-cn)，在 v2.32.1 汉化基础上新增：
+> **插件外壳、更新后自动重装、自动喊话、独立备份、安装/还原/状态脚本**。
+
+## 一键安装（Windows）
+
+```powershell
+git clone https://github.com/wenbaolu6666-design/antigravity-desktop-cn.git
+cd antigravity-desktop-cn
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\installer\install.ps1
+```
+
+安装器会：
+
+1. 请求一次管理员授权；
+2. 备份官方 `app.asar` 到 `C:\ProgramData\AntigravityZh\backups`；
+3. 清理旧版本 `app.asar.bak`，避免客户端升级后被旧包体降级；
+4. 关闭并重启 Antigravity，写入汉化；
+5. 注册计划任务 `AntigravityZhWatcher`，每 10 分钟检查一次更新；
+6. 可选安装插件外壳。
+
+## 更新后自动重装
+
+Antigravity 更新会替换 `app.asar`，汉化随之失效。守护任务会：
+
+- 检测客户端版本变化或汉化标记丢失；
+- 在客户端退出后自动重新注入汉化；
+- 写入 `%LOCALAPPDATA%\AntigravityZh\last-event.json`；
+- 弹出 Windows 通知，并在新会话通过插件 `SessionStart` 钩子自动“喊话”告知用户。
+
+旧版本备份不会被写回新版本，避免版本错配。
+
+## 插件边界（重要）
+
+Antigravity **支持插件**，但插件只能提供技能、规则、MCP、侧边栏 UI 面板，**不能直接改写宿主界面文字**。
+
+因此本仓库采用“插件 + ASAR 安装器”的混合形态：
+
+- `plugin/`：可安装到 `~/.gemini/config/plugins/antigravity-zh-cn`，提供“安装/修复/还原/状态”对话入口和更新播报；
+- `installer/`、`watcher/`：真正完成宿主界面汉化和更新守护。
+
+## 常用命令
+
+```powershell
+# 查看状态
+pwsh -File .\installer\status.ps1
+
+# 还原英文
+pwsh -File .\installer\uninstall.ps1
+
+# 仅安装插件外壳
+pwsh -File .\installer\install-plugin.ps1
+```
+
+## 目录
+
+- `installer/`：安装、状态、还原、插件安装
+- `watcher/`：更新检测与自动重装
+- `plugin/`：Antigravity 插件外壳（技能、规则、SessionStart 播报）
+- `tools/`：ASAR 读取与版本检测
+- `dicts/`、`localization_engine.js`：上游汉化词典与注入引擎
+- `NOTICE.md`：上游归属与本 Fork 新增说明
+
+---
 # Antigravity 中文汉化引擎（Windows / macOS / Linux）
 
 > **支持系统**：Windows / macOS / Linux（含 Ubuntu 等常见发行版）
@@ -278,3 +343,4 @@ AI 会自动激活内置技能并调用原生 Node.js 工具，同时以官方�
    - **独立分包覆盖**：分别维护 `dicts/marketplace_plugins.json` 与 `dicts/page_mcp_knowledge.json`，全量覆盖 Google 官方专区、合作伙伴专区插件及官方 MCP 服务器商店。
    - **双源联动与内存零落盘比对架构**：默认直连官方云端权威接口实时拉取最新插件清单并在内存中流式提取技能元数据，同时支持与运行态 Antigravity 客户端联动审计官方 MCP 商店条目。
    - **技能选择器安全有界绑定**：在斜杠命令与技能选择器中提供中文友好展示，防止底层路径或技术标识符被意外汉化污染。
+
