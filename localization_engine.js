@@ -1445,6 +1445,43 @@ function generateJs() {
         return ok;
     }
 
+    function getArtifactCardUiTranslation(node, value) {
+        if (!node || typeof value !== 'string') return null;
+        const text = norm(value);
+        if (!text || text.length > 40) return null;
+        const el = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+        if (!el || !el.closest) return null;
+        const control = el.closest('button, [role="button"], [data-testid*="artifact"], [data-testid*="commit"]');
+        if (!control) return null;
+        let match = text.match(/^(\\d+)\\s+files?\\s+changed$/i);
+        if (match) return match[1] + " 个文件已更改";
+        if (/^files? changed$/i.test(text)) return "个文件已更改";
+        if (/^Agent said$/i.test(text)) return "智能体说";
+        const labels = {
+            'Review': '审查', 'Open': '打开', 'View': '查看',
+            'Details': '详情', 'Diff': '差异', 'Apply': '应用',
+            'Keep': '保留', 'Discard': '放弃', 'Accept': '接受',
+            'Reject': '驳回'
+        };
+        const key = text[0].toUpperCase() + text.slice(1).toLowerCase();
+        return labels[key] || null;
+    }
+
+    function getAgentSaidTranslation(node, value) {
+        const text = norm(value);
+        const match = text.match(/^Agent said(?:\\s*([>›❯〉→]))?$/i);
+        if (!match) return null;
+        let current = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+        for (let depth = 0; current && depth < 4; depth++) {
+            if (current === document.body || current === document.documentElement) break;
+            const cls = typeof current.className === 'string' ? current.className : '';
+            if (cls && /(?:prose|markdown)/i.test(cls)) return null;
+            if (current.hasAttribute && current.hasAttribute('data-markdown-root')) return null;
+            current = current.parentElement;
+        }
+        return '智能体说' + (match[1] ? ' ' + match[1] : '');
+    }
+
     function getWorkspaceDisplayNameTranslation(node, value) {
         if (!node || typeof value !== 'string') return null;
         const text = norm(value);
@@ -2181,7 +2218,12 @@ function generateJs() {
             'search': '搜索', 'task': '任务', 'run': '运行',
             'subagent': '子智能体', 'subagents': '子智能体',
             'command': '命令', 'file': '文件', 'tool': '工具',
-            'query': '查询', 'request': '请求'
+            'query': '查询', 'request': '请求',
+            'files changed': '个文件已更改',
+            'file changed': '个文件已更改',
+            'Files changed': '个文件已更改',
+            'File changed': '个文件已更改',
+            'Agent said': '智能体说'
         };
         for (const node of nodes) {
             const raw = node.nodeValue || '';
@@ -7889,6 +7931,16 @@ function getDynamicProductUiTranslation(value, node = null) {
                 if (translatedValues.get(node) === originalVal) return;
 
                 const parentEl = node.parentElement;
+                const artifactCardTrans = getArtifactCardUiTranslation(node, originalVal);
+                if (artifactCardTrans) {
+                    replaceTextNode(node, artifactCardTrans);
+                    return;
+                }
+                const agentSaidTrans = getAgentSaidTranslation(node, originalVal);
+                if (agentSaidTrans) {
+                    replaceTextNode(node, agentSaidTrans);
+                    return;
+                }
                 const directToolActivityTrans = getToolActivityStatusTranslation(node, originalVal);
                 if (directToolActivityTrans) {
                     replaceTextNode(node, directToolActivityTrans);

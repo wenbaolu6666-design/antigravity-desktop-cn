@@ -32,6 +32,8 @@ const activityDetail = loadFunction('getToolActivityDetailTranslation');
 const activityStatus = loadFunction('getToolActivityStatusTranslation');
 const activityPhrase = loadFunction('getActivityRowPhraseTranslation');
 const thoughtHeader = loadFunction('isThoughtHeaderText');
+const artifactUi = loadFunction('getArtifactCardUiTranslation');
+const agentSaid = loadFunction('getAgentSaidTranslation');
 
 const greetingNode = { nodeType: 3, parentElement: { className: 'home-greeting-title', parentElement: null, getAttribute: () => null } };
 for (const name of ['张三', '李四', 'Alice', 'Bob Smith', '欧阳娜娜']) {
@@ -84,6 +86,23 @@ assert.strictEqual(thoughtHeader('思考 7 秒'), true);
 assert.strictEqual(thoughtHeader('Thought for 7s'), true);
 assert.strictEqual(thoughtHeader('工作了 44 秒'), false);
 assert.strictEqual(thoughtHeader('Worked for 44s'), false);
+const artifactNode = { nodeType: 3, parentElement: { closest: () => ({}) } };
+assert.strictEqual(artifactUi(artifactNode, '3 files changed'), '3 个文件已更改');
+assert.strictEqual(artifactUi(artifactNode, 'files changed'), '个文件已更改');
+assert.strictEqual(artifactUi(artifactNode, 'Review'), '审查');
+assert.strictEqual(artifactUi(artifactNode, 'Agent said'), '智能体说');
+assert.strictEqual(artifactUi(artifactNode, 'random text'), null);
+assert.strictEqual(artifactUi({ nodeType: 3, parentElement: { closest: () => null } }, 'Review'), null);
+const plainNode = { nodeType: 3, parentElement: { className: '', hasAttribute: () => false, parentElement: null } };
+const thoughtProseNode = { nodeType: 3, parentElement: { className: 'prose markdown', hasAttribute: () => false, parentElement: null } };
+assert.strictEqual(agentSaid(plainNode, 'Agent said'), '智能体说');
+assert.strictEqual(agentSaid(thoughtProseNode, 'Agent said'), null);
+
+const commonDict = require('../dicts/common.json');
+assert.strictEqual(commonDict['Agent said'], '智能体说');
+assert.strictEqual(commonDict['files changed'], '个文件已更改');
+assert.strictEqual(commonDict['Auto'], '自动');
+assert.strictEqual(commonDict['Review'], '审查');
 
 console.log('本地化规则测试全部通过');
 
