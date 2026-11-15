@@ -1395,6 +1395,32 @@ function generateJs() {
         return ok;
     }
 
+    function getWorkspaceDisplayNameTranslation(node, value) {
+        if (!node || typeof value !== 'string') return null;
+        const text = norm(value);
+        if (!text || text.length > 80) return null;
+        let current = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+        let inRow = false;
+        for (let depth = 0; current && depth < 5; depth++) {
+            if (current.getAttribute && current.getAttribute('data-testid') === 'conversation-row-sidebar') {
+                inRow = true;
+                break;
+            }
+            current = current.parentElement;
+        }
+        if (!inRow) return null;
+        const fixed = {
+            'Codex Session Import': 'Codex 会话导入',
+            'Codex Session Import Plugin': 'Codex 会话导入插件',
+            'Translate Skills Into Chinese': '将技能翻译成中文',
+            'AI Assistant Capabilities Overview': 'AI 助手能力概览'
+        };
+        if (fixed[text]) return fixed[text];
+        const match = text.match(/^Codex Session Import(?: Plugin)?(?: \\((\\d+)\\))?$/i);
+        if (match) return 'Codex 会话导入' + (match[1] ? ' (' + match[1] + ')' : '') + (/Plugin/i.test(text) ? '插件' : '');
+        return null;
+    }
+
     function getToolActivityStatusTranslation(node, value) {
         if (!node || typeof value !== 'string') return null;
         const text = norm(value).replace(/(?:\\s*[.…])+$/, '').trim();
@@ -1499,6 +1525,8 @@ function generateJs() {
         if (modelNoticeTrans) return modelNoticeTrans;
         const modelEffortTrans = getModelEffortTranslation(node, value);
         if (modelEffortTrans) return modelEffortTrans;
+        const workspaceNameTrans = getWorkspaceDisplayNameTranslation(node, value);
+        if (workspaceNameTrans) return workspaceNameTrans;
         const normalized = norm(value);
         const lower = normalized.toLowerCase();
 
@@ -7413,6 +7441,8 @@ function getDynamicProductUiTranslation(value, node = null) {
                 } else if ((dynRes = translateWithShortcut(valNorm))) {
                     newVal = dynRes;
                 } else if ((dynRes = getHomeGreetingTranslation(node, valNorm))) {
+                    newVal = dynRes;
+                } else if ((dynRes = getWorkspaceDisplayNameTranslation(node, originalVal))) {
                     newVal = dynRes;
                 } else if ((dynRes = getModelEffortTranslation(node, originalVal))) {
                     newVal = dynRes;

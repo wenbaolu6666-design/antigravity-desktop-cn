@@ -35,7 +35,7 @@ Antigravity 的 UI 实际由 `language_server.exe` 内嵌的 ZIP 提供，其中
 3. 生成源码级中文 `main.js`，并写入 `.web-bundle-ok` 标记；
 4. 在 `app.asar` 的 `lsDefaults.js` 中注入 `--web_bundle_path`，让客户端优先加载外部 bundle。
 
-客户端更新后，修复助手会从**新版本的** `language_server.exe` 重新解包、重新翻译、重新生成 bundle，因此更新不会把汉化永久覆盖。少量服务端动态文案仍由运行时翻译兜底。
+客户端更新后，修复助手会从**新版本的** `language_server.exe` 重新解包、重新翻译、重新生成 bundle，因此更新不会把汉化永久覆盖。少量服务端动态文案仍由运行时翻译兜底。源码翻译会自动跳过 protobuf、SVG `transform`、URL、路径等技术字符串，避免破坏初始化或图形。自动生成的工作区名（如 `Codex Session Import`）只在侧栏显示层翻译，不改真实数据。
 ## 关于管理员控制台窗口
 
 安装器需要管理员权限写入 `app.asar`，但**重启客户端时会通过 `explorer.exe` 以当前登录用户身份启动**，不会让 Antigravity 继承管理员令牌，也不会留下显示启动日志的 Administrator 控制台窗口。
@@ -370,6 +370,7 @@ AI 会自动激活内置技能并调用原生 Node.js 工具，同时以官方�
    - **独立分包覆盖**：分别维护 `dicts/marketplace_plugins.json` 与 `dicts/page_mcp_knowledge.json`，全量覆盖 Google 官方专区、合作伙伴专区插件及官方 MCP 服务器商店。
    - **双源联动与内存零落盘比对架构**：默认直连官方云端权威接口实时拉取最新插件清单并在内存中流式提取技能元数据，同时支持与运行态 Antigravity 客户端联动审计官方 MCP 商店条目。
    - **技能选择器安全有界绑定**：在斜杠命令与技能选择器中提供中文友好展示，防止底层路径或技术标识符被意外汉化污染。
+
 
 
 

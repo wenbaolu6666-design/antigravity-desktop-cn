@@ -20,7 +20,14 @@ global.isToolActivityContext = loadFunction('isToolActivityContext');
 const greeting = loadFunction('getHomeGreetingTranslation');
 const notice = loadFunction('getModelNoticeTranslation');
 const effort = loadFunction('getModelEffortTranslation');
-const activityDetail = loadFunction('getToolActivityDetailTranslation');
+const workspaceName = loadFunction('getWorkspaceDisplayNameTranslation');
+const workspaceRow = { nodeType: 3, parentElement: { getAttribute: (n) => n === 'data-testid' ? 'conversation-row-sidebar' : null, parentElement: null } };
+const normalNode = { nodeType: 3, parentElement: { getAttribute: () => null, parentElement: null } };
+assert.strictEqual(workspaceName(workspaceRow, 'Codex Session Import Plugin'), 'Codex 会话导入插件');
+assert.strictEqual(workspaceName(workspaceRow, 'Codex Session Import'), 'Codex 会话导入');
+assert.strictEqual(workspaceName(workspaceRow, 'Translate Skills Into Chinese'), '将技能翻译成中文');
+assert.strictEqual(workspaceName(workspaceRow, 'My Own Workspace'), null);
+assert.strictEqual(workspaceName(normalNode, 'Codex Session Import'), null);const activityDetail = loadFunction('getToolActivityDetailTranslation');
 const activityStatus = loadFunction('getToolActivityStatusTranslation');
 
 const greetingNode = { nodeType: 3, parentElement: { className: 'home-greeting-title', parentElement: null, getAttribute: () => null } };
@@ -63,4 +70,5 @@ assert.strictEqual(activityStatus(activityNode, 'Working'), '工作中');
 assert.strictEqual(activityStatus(proseNode, 'Working'), null);
 
 console.log('本地化规则测试全部通过');
+
 
