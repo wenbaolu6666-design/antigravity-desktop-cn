@@ -2024,6 +2024,39 @@ function generateJs() {
         return true;
     }
 
+    function translateActivityHeaderText(element) {
+        if (!element || element.nodeType !== Node.ELEMENT_NODE) return false;
+        const nodes = collectTextNodes(element);
+        let changed = false;
+        const map = {
+            'Ran': '已运行', 'Running': '正在运行',
+            'Analyzed': '已分析', 'Analyzing': '正在分析',
+            'Working': '工作中',
+            'Reading': '正在读取', 'Read': '已读取',
+            'Editing': '正在编辑', 'Edited': '已编辑',
+            'Listing': '正在列出', 'Listed': '已列出',
+            'Exploring': '正在浏览', 'Explored': '已浏览',
+            'Thinking': '正在思考', 'Thought': '思考'
+        };
+        for (const node of nodes) {
+            const raw = node.nodeValue || '';
+            const trimmed = raw.trim();
+            if (!trimmed) continue;
+            if (map[trimmed]) {
+                const leading = (raw.match(/^\\s*/) || [''])[0];
+                const trailing = (raw.match(/\\s*$/) || [''])[0];
+                changed = replaceTextNode(node, leading + map[trimmed] + trailing) || changed;
+                continue;
+            }
+            if (/Exited with code\\s+\\d+/i.test(raw)) {
+                changed = replaceTextNode(node, raw.replace(/Exited with code\\s+(\\d+)/gi, '退出码 $1')) || changed;
+            } else if (/Process exited with code\\s+\\d+/i.test(raw)) {
+                changed = replaceTextNode(node, raw.replace(/Process exited with code\\s+(\\d+)/gi, '进程退出码 $1')) || changed;
+            }
+        }
+        return changed;
+    }
+
     function collectTextNodes(element) {
         const nodes = [];
         if (!element || !element.childNodes) return nodes;
@@ -6200,6 +6233,7 @@ function getDynamicProductUiTranslation(value, node = null) {
             if (!firstChild || firstChild.nodeType !== Node.TEXT_NODE) return false;
             const singleVal = firstChild.nodeValue || '';
             if (singleVal.length <= 160 && isCollapsibleActivityHeader(singleVal)) {
+                translateActivityHeaderText(element);
                 markThoughtContentSibling(element);
                 return 'skip_children';
             }
@@ -6253,6 +6287,7 @@ function getDynamicProductUiTranslation(value, node = null) {
         if (isInBlockedZone(element) && !isFoldButton) return false;
 
         if (textLength <= 160 && isCollapsibleActivityHeader(rawText)) {
+            translateActivityHeaderText(element);
             markThoughtContentSibling(element);
             return 'skip_children';
         }
@@ -7272,6 +7307,7 @@ function getDynamicProductUiTranslation(value, node = null) {
 
                 const isFoldButtonContainer = tag === 'BUTTON' || node.getAttribute?.('role') === 'button';
                 if (blockedState === 0 || isFoldButtonContainer) {
+                    if (isFoldButtonContainer) translateActivityHeaderText(node);
                     if (translateSpecialContainers(node) === 'skip_children') return;
                     translateCombinedTextChildren(node);
                     for (const attr of ['placeholder', 'aria-placeholder', 'data-placeholder', 'title', 'aria-label']) {
