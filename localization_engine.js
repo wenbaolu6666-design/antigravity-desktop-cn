@@ -2032,12 +2032,15 @@ function generateJs() {
         if (!str || typeof str !== 'string') return false;
         const trimmed = str.trim();
         if (trimmed.length > 160) return false;
-        if (!/^(?:Thought|Thinking|Explored|Exploring|Ran|Running|Edited|Editing)\\b/i.test(trimmed)) return false;
+        if (!/^(?:Thought|Thinking|Explored|Exploring|Ran|Running|Edited|Editing|思考|思考了|正在思考|思考中|思维)/i.test(trimmed)) return false;
 
         if (/^(?:Thought for|Thinking for)\\s+[\\d\\w\\s,.<]+?(?:\\s*[>v›❯〉→∨˅⌄▼▽⋁↓])?\\s*$/i.test(trimmed)) {
             return true;
         }
         if (/^Thinking(?:(?:\\s*\\.)|(?:\\s*…))*\\s*$/i.test(trimmed)) {
+            return true;
+        }
+        if (/^(?:思考|思考了|正在思考|思考中|思维|思维过程)(?:\\s*[\\d.,]+\\s*(?:秒|分钟|毫秒|小时)?)?\\s*[>v›❯〉→∨˅⌄▼▽⋁↓]?\\s*$/i.test(trimmed)) {
             return true;
         }
 
